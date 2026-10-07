@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-// Mutierende Admin-Requests brauchen den Header (Schutz gegen CSRF aus fremden Webseiten).
+// Mutating admin requests need the header (protection against CSRF from foreign web pages).
 const ADMIN_HEADERS = { 'X-Soundboard': '1' }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
@@ -19,7 +19,7 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
     try {
       msg = (await res.json()).error ?? msg
     } catch {
-      /* keine JSON-Antwort */
+      /* not a JSON response */
     }
     throw new ApiError(msg, res.status)
   }
@@ -34,7 +34,7 @@ const json = (method: string, body: unknown): RequestInit => ({
 })
 
 export const api = {
-  // öffentlich
+  // public
   board: () => request<BoardResponse>('/api/board'),
   trigger: (tile: string) => request<void>(`/api/trigger/${encodeURIComponent(tile)}`, { method: 'POST' }),
   stopAll: () => request<void>('/api/stopall', { method: 'POST' }),

@@ -1,5 +1,5 @@
-// genicon erzeugt das App-Icon (cmd/soundboard/icon.ico): ein dunkles Quadrat mit 2×2 bunten Kacheln.
-// Aufruf (im backend-Ordner): go run ./cmd/genicon
+// genicon generates the app icon (cmd/soundboard/icon.ico): a dark square with 2×2 colorful tiles.
+// Usage (in the backend folder): go run ./cmd/genicon
 package main
 
 import (
@@ -13,9 +13,9 @@ import (
 )
 
 func pixel(x, y, size int) color.NRGBA {
-	// normierte Koordinaten 0..1
+	// normalized coordinates 0..1
 	fx, fy := (float64(x)+0.5)/float64(size), (float64(y)+0.5)/float64(size)
-	// abgerundetes Quadrat
+	// rounded square
 	const r = 0.2
 	dx, dy := max(0, max(r-fx, fx-(1-r))), max(0, max(r-fy, fy-(1-r)))
 	if dx*dx+dy*dy > r*r && (fx < r || fx > 1-r) && (fy < r || fy > 1-r) {
@@ -23,7 +23,7 @@ func pixel(x, y, size int) color.NRGBA {
 	}
 	bg := color.NRGBA{0x1e, 0x22, 0x2b, 0xff}
 	tiles := []color.NRGBA{{0xff, 0x6b, 0x6b, 0xff}, {0x4d, 0xab, 0xf7, 0xff}, {0x51, 0xcf, 0x66, 0xff}, {0xff, 0xd4, 0x3b, 0xff}}
-	const m, g = 0.14, 0.08 // Rand, Lücke
+	const m, g = 0.14, 0.08 // margin, gap
 	w := (1 - 2*m - g) / 2
 	for i, c := range tiles {
 		x0 := m + float64(i%2)*(w+g)
@@ -51,7 +51,7 @@ func dib(size int) []byte {
 			b.Write([]byte{c.B, c.G, c.R, c.A})
 		}
 	}
-	b.Write(make([]byte, ((size+31)/32*4)*size)) // AND-Maske (unbenutzt, Alpha gilt)
+	b.Write(make([]byte, ((size+31)/32*4)*size)) // AND mask (unused, alpha applies)
 	return b.Bytes()
 }
 
@@ -79,7 +79,7 @@ func main() {
 	}
 }
 
-// writePNGs erzeugt die PNG-Varianten für go-winres (Exe-Icon).
+// writePNGs generates the PNG variants for go-winres (exe icon).
 func writePNGs() {
 	for _, s := range []int{16, 32, 48, 256} {
 		img := image.NewNRGBA(image.Rect(0, 0, s, s))

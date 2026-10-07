@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ServerEvent } from './types'
 
 /**
- * Hält eine WebSocket-Verbindung zum Backend (mit Auto-Reconnect) und liefert die gerade spielenden Kacheln.
- * onBoardChanged wird bei "board"-Ereignissen und nach jedem (Wieder-)Verbinden aufgerufen.
+ * Keeps a WebSocket connection to the backend (with auto-reconnect) and returns the tiles that are currently playing.
+ * onBoardChanged is called on "board" events and after every (re)connect.
  */
 export function useBoardSocket(onBoardChanged: () => void) {
   const [connected, setConnected] = useState(false)

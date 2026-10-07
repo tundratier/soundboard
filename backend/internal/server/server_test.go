@@ -28,7 +28,7 @@ type fakeStream struct{}
 func (fakeStream) Close() {}
 
 type fakeBackend struct {
-	mu   sync.Mutex
+	mu    sync.Mutex
 	fills []func([]float32)
 }
 
@@ -90,7 +90,7 @@ func newEnv(t *testing.T) *env {
 	return &env{srv: ts, h: s.Handler(), eng: eng, st: st, lib: lib, fb: fb, plat: plat, dir: dir}
 }
 
-// adminReq ruft den Handler direkt auf, damit RemoteAddr/Host kontrolliert werden können.
+// adminReq calls the handler directly so RemoteAddr/Host can be controlled.
 func (e *env) adminReq(method, url string, body io.Reader, mut ...func(*http.Request)) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, url, body)
 	r.RemoteAddr = "127.0.0.1:5555"
@@ -106,15 +106,15 @@ func (e *env) adminReq(method, url string, body io.Reader, mut ...func(*http.Req
 
 func TestAdminGuard(t *testing.T) {
 	e := newEnv(t)
-	// Fremde IP
+	// Foreign IP
 	if w := e.adminReq("GET", "/api/admin/state", nil, func(r *http.Request) { r.RemoteAddr = "192.168.1.50:4000" }); w.Code != 403 {
 		t.Errorf("LAN-Client: %d", w.Code)
 	}
-	// DNS-Rebinding: Loopback-IP, aber fremder Host
+	// DNS rebinding: loopback IP, but foreign Host
 	if w := e.adminReq("GET", "/api/admin/state", nil, func(r *http.Request) { r.Host = "evil.example:8723" }); w.Code != 403 {
 		t.Errorf("fremder Host: %d", w.Code)
 	}
-	// CSRF: mutierend ohne Header
+	// CSRF: mutating request without header
 	if w := e.adminReq("PUT", "/api/admin/board", strings.NewReader("{}"), func(r *http.Request) { r.Header.Del("X-Soundboard") }); w.Code != 403 {
 		t.Errorf("ohne Header: %d", w.Code)
 	}
@@ -124,7 +124,7 @@ func TestAdminGuard(t *testing.T) {
 	if w := e.adminReq("GET", "/admin", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "app") {
 		t.Errorf("/admin lokal: %d", w.Code)
 	}
-	// Board ist offen
+	// Board is open
 	resp, err := http.Get(e.srv.URL + "/api/board")
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatal(err, resp)
@@ -186,7 +186,7 @@ func TestWebSocketTrigger(t *testing.T) {
 	if m := read(); m["type"] != "started" || m["tile"] != "t1" {
 		t.Fatalf("%v", m)
 	}
-	// Audio-Callbacks beider Busse pumpen, bis der kurze Ton endet → "stopped"
+	// Pump the audio callbacks of both buses until the short tone ends → "stopped"
 	e.fb.mu.Lock()
 	fills := append([]func([]float32){}, e.fb.fills...)
 	e.fb.mu.Unlock()
@@ -223,7 +223,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 		t.Fatal("Upload nicht geladen")
 	}
 
-	// Board speichern: ungültig → 400, gültig → 200
+	// Save board: invalid → 400, valid → 200
 	w = e.adminReq("PUT", "/api/admin/board", strings.NewReader(`{"name":"X","cols":0,"rows":2,"tiles":[]}`))
 	if w.Code != 400 {
 		t.Fatalf("ungültiges Raster: %d", w.Code)
@@ -233,7 +233,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 
-	// Standard-Kommunikationsgerät
+	// Default communications device
 	w = e.adminReq("POST", "/api/admin/default-device", strings.NewReader(`{"deviceId":"co"}`))
 	if w.Code != 204 || e.plat.id != "co" || e.plat.role != "communications" {
 		t.Fatalf("%d %+v", w.Code, e.plat)
@@ -243,7 +243,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 		t.Fatalf("%d", w.Code)
 	}
 
-	// State enthält Kabel-Erkennung
+	// State contains cable detection
 	w = e.adminReq("GET", "/api/admin/state", nil)
 	var st stateResp
 	json.Unmarshal(w.Body.Bytes(), &st)
@@ -251,7 +251,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 		t.Fatalf("%+v", st.Cable)
 	}
 
-	// Audio-Einstellungen
+	// Audio settings
 	w = e.adminReq("PUT", "/api/admin/audio", strings.NewReader(`{"mainDeviceId":"ci","micGain":9,"fxGainMain":1,"fxGainMonitor":1,"periodMs":10}`))
 	if w.Code != 200 || e.st.Get().Audio.MicGain != 4 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())

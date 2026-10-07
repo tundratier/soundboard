@@ -1,9 +1,9 @@
-// spike: Diagnose-Werkzeug (Konsole). Listet Geräte und kann einen Dauertest fahren:
+// spike: diagnostic tool (console). Lists devices and can run a long-duration test:
 //
-//	spike                      → Geräte auflisten
-//	spike run <in> <main> [<monitor>] [wav]  → Mikrofon → Main, Ton alle 5 s auf Main+Monitor, Statistik jede Sekunde
+//	spike                      → list devices
+//	spike run <in> <main> [<monitor>]  → microphone → main, tone every 5 s on main+monitor, statistics every second
 //
-// <in>/<main>/<monitor> sind Teilstrings der Gerätenamen.
+// <in>/<main>/<monitor> are substrings of the device names.
 package main
 
 import (
@@ -64,7 +64,7 @@ func main() {
 	defer e.Close()
 	e.ApplyNow(set)
 
-	// Testton 440 Hz, 0,5 s
+	// Test tone 440 Hz, 0.5 s
 	beep := &audio.Sound{Name: "beep", Frames: audio.SampleRate / 2}
 	beep.Data = make([]float32, beep.Frames*2)
 	for i := 0; i < beep.Frames; i++ {

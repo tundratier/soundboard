@@ -1,4 +1,4 @@
-// soundboard: lokales Soundboard für Windows – Mikrofon + Effekte → virtuelles Kabel, Board im Browser.
+// soundboard: local soundboard for Windows – microphone + effects → virtual cable, board in the browser.
 package main
 
 import (
@@ -120,7 +120,7 @@ func main() {
 	}
 
 	boardURL := fmt.Sprintf("http://localhost:%d/", st.Get().Server.Port)
-	runTray(adminURL, boardURL, shutdown) // blockiert bis „Beenden“
+	runTray(adminURL, boardURL, shutdown) // blocks until "Quit"
 	log.Printf("beendet")
 }
 
@@ -145,7 +145,7 @@ func setupLogging(dataDir string) {
 	if err != nil {
 		return
 	}
-	if st, err := f.Stat(); err == nil && st.Size() > 2<<20 { // einfache Rotation
+	if st, err := f.Stat(); err == nil && st.Size() > 2<<20 { // simple rotation
 		f.Close()
 		os.Rename(f.Name(), f.Name()+".old")
 		f, err = os.OpenFile(filepath.Join(dataDir, "soundboard.log"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
@@ -156,7 +156,7 @@ func setupLogging(dataDir string) {
 	log.SetOutput(teeLog{file: f, console: os.Stderr})
 }
 
-// seedFirstRun legt einen Beispiel-Sound und eine Beispiel-Kachel an, damit man sofort etwas testen kann.
+// seedFirstRun creates an example sound and an example tile so there is something to try right away.
 func seedFirstRun(lib *library.Library, st *store.Store) {
 	name := "Testton.wav"
 	if err := library.WriteTestTone(filepath.Join(lib.Dir(), name)); err != nil {
@@ -175,9 +175,9 @@ func seedFirstRun(lib *library.Library, st *store.Store) {
 	}
 }
 
-// autoSelectDevices wählt beim ersten Start sinnvolle Geräte:
-// Mikrofon = Standard-Aufnahmegerät, Main = CABLE Input (falls installiert), Monitor = Standard-Wiedergabegerät.
-// Main bleibt sonst leer – ein echter Lautsprecher würde das Mikrofon sofort rückkoppeln.
+// autoSelectDevices picks sensible devices on first start:
+// microphone = default capture device, main = CABLE Input (if installed), monitor = default playback device.
+// Otherwise main stays empty – a real loudspeaker would feed the microphone back immediately.
 func autoSelectDevices(eng *audio.Engine, st *store.Store) {
 	devs, err := eng.Devices()
 	if err != nil {
@@ -201,8 +201,8 @@ func autoSelectDevices(eng *audio.Engine, st *store.Store) {
 	})
 }
 
-// teeLog schreibt in die Logdatei und – best effort – nach stderr. Die GUI-exe hat keinen gültigen stderr;
-// io.MultiWriter würde dort beim ersten Fehler abbrechen.
+// teeLog writes to the log file and – best effort – to stderr. The GUI exe has no valid stderr;
+// io.MultiWriter would abort there on the first error.
 type teeLog struct{ file, console io.Writer }
 
 func (t teeLog) Write(p []byte) (int, error) {

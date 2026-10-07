@@ -1,4 +1,4 @@
-// Package miniaudio implementiert audio.Backend auf Basis von miniaudio/WASAPI (via malgo, cgo).
+// Package miniaudio implements audio.Backend on top of miniaudio/WASAPI (via malgo, cgo).
 package miniaudio
 
 import (
@@ -18,7 +18,7 @@ import (
 var debug = os.Getenv("SOUNDBOARD_DEBUG") != ""
 
 type Backend struct {
-	mu  sync.Mutex // miniaudio-Kontext ist nicht für parallele Enumeration/Init gedacht
+	mu  sync.Mutex // the miniaudio context is not meant for parallel enumeration/init
 	ctx *malgo.AllocatedContext
 }
 
@@ -41,7 +41,7 @@ func trimNL(s string) string {
 	return s
 }
 
-// idToString dekodiert die WASAPI-Endpoint-ID (UTF-16LE, nullterminiert) aus der ma_device_id.
+// idToString decodes the WASAPI endpoint ID (UTF-16LE, null-terminated) from the ma_device_id.
 func idToString(id malgo.DeviceID) string {
 	var u []uint16
 	for i := 0; i+1 < 128 && i+1 < len(id); i += 2 {
@@ -90,7 +90,7 @@ func (b *Backend) Devices() ([]audio.DeviceInfo, error) {
 	return out, nil
 }
 
-// stream kapselt ein malgo-Gerät. closing verhindert, dass ein beabsichtigtes Schließen als Ausfall gemeldet wird.
+// stream wraps a malgo device. closing prevents an intentional close from being reported as a failure.
 type stream struct {
 	dev     *malgo.Device
 	closing atomic.Bool

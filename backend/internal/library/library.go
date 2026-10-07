@@ -1,5 +1,5 @@
-// Package library verwaltet den Sound-Ordner: Dekodieren (WAV/MP3/FLAC/OGG) in 48-kHz-Stereo-float32,
-// Überwachen des Ordners und Upload/Löschen.
+// Package library manages the sound folder: decoding (WAV/MP3/FLAC/OGG) to 48 kHz stereo float32,
+// watching the folder, and upload/delete.
 package library
 
 import (
@@ -24,12 +24,12 @@ import (
 	"soundboard/internal/audio"
 )
 
-// maxFrames begrenzt die Länge eines Sounds (RAM: ~23 MB pro Minute).
+// maxFrames limits the length of a sound (RAM: ~23 MB per minute).
 const maxFrames = 10 * 60 * audio.SampleRate
 
 var extensions = map[string]bool{".wav": true, ".mp3": true, ".flac": true, ".ogg": true}
 
-// Info beschreibt einen Sound für die UI.
+// Info describes a sound for the UI.
 type Info struct {
 	Name       string `json:"name"`
 	DurationMs int    `json:"durationMs"`
@@ -52,7 +52,7 @@ type Library struct {
 	onChange func()
 }
 
-// New öffnet (und erzeugt ggf.) den Sound-Ordner. onChange wird nach jeder Änderung aufgerufen (darf nil sein).
+// New opens (and creates if needed) the sound folder. onChange is called after every change (may be nil).
 func New(dir string, onChange func()) (*Library, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
@@ -62,10 +62,10 @@ func New(dir string, onChange func()) (*Library, error) {
 
 func (l *Library) Dir() string { return l.dir }
 
-// Supported prüft die Dateiendung.
+// Supported checks the file extension.
 func Supported(name string) bool { return extensions[strings.ToLower(filepath.Ext(name))] }
 
-// Scan lädt alle Dateien des Ordners (neu).
+// Scan (re)loads all files in the folder.
 func (l *Library) Scan() {
 	files, err := os.ReadDir(l.dir)
 	if err != nil {
@@ -96,11 +96,11 @@ func (l *Library) changed() {
 	}
 }
 
-// reload lädt eine Datei, sofern sie neu oder geändert ist. Liefert true, wenn sich etwas geändert hat.
+// reload loads a file if it is new or changed. Returns true if anything changed.
 func (l *Library) reload(name string) bool {
 	path := filepath.Join(l.dir, name)
 	st, err := os.Stat(path)
-	if err != nil { // verschwunden
+	if err != nil { // gone
 		l.mu.Lock()
 		_, existed := l.entries[name]
 		delete(l.entries, name)
@@ -129,7 +129,7 @@ func (l *Library) reload(name string) bool {
 	return true
 }
 
-// Get liefert den dekodierten Sound (nil, wenn unbekannt oder fehlerhaft).
+// Get returns the decoded sound (nil if unknown or broken).
 func (l *Library) Get(name string) *audio.Sound {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -139,7 +139,7 @@ func (l *Library) Get(name string) *audio.Sound {
 	return nil
 }
 
-// List liefert alle Sounds alphabetisch.
+// List returns all sounds alphabetically.
 func (l *Library) List() []Info {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -151,7 +151,7 @@ func (l *Library) List() []Info {
 	return out
 }
 
-// SanitizeName macht aus einem Upload-Namen einen sicheren Dateinamen.
+// SanitizeName turns an upload name into a safe file name.
 func SanitizeName(name string) string {
 	name = filepath.Base(strings.ReplaceAll(name, "\\", "/"))
 	name = strings.Map(func(r rune) rune {
@@ -163,7 +163,7 @@ func SanitizeName(name string) string {
 	return strings.Trim(name, " .")
 }
 
-// Save speichert einen Upload. Existiert der Name schon, wird " (2)" usw. angehängt. Liefert den endgültigen Namen.
+// Save stores an upload. If the name already exists, " (2)" etc. is appended. Returns the final name.
 func (l *Library) Save(name string, r io.Reader) (string, error) {
 	name = SanitizeName(name)
 	if name == "" || !Supported(name) {
@@ -199,7 +199,7 @@ func (l *Library) Save(name string, r io.Reader) (string, error) {
 	return final, nil
 }
 
-// Delete entfernt einen Sound samt Datei.
+// Delete removes a sound including its file.
 func (l *Library) Delete(name string) error {
 	if name != SanitizeName(name) || !Supported(name) {
 		return errors.New("ungültiger Name")
@@ -212,7 +212,7 @@ func (l *Library) Delete(name string) error {
 	return nil
 }
 
-// Path liefert den Dateipfad (für Downloads/Vorhören im Browser), leer wenn unbekannt.
+// Path returns the file path (for downloads/audition in the browser), empty if unknown.
 func (l *Library) Path(name string) string {
 	if name != SanitizeName(name) || !Supported(name) {
 		return ""
@@ -224,7 +224,7 @@ func (l *Library) Path(name string) string {
 	return p
 }
 
-// Watch überwacht den Ordner, bis stop geschlossen wird.
+// Watch watches the folder until stop is closed.
 func (l *Library) Watch(stop <-chan struct{}) error {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -249,7 +249,7 @@ func (l *Library) Watch(stop <-chan struct{}) error {
 				}
 				name := filepath.Base(ev.Name)
 				if Supported(name) {
-					pending[name] = time.Now().Add(400 * time.Millisecond) // entprellen: Datei wird ggf. noch geschrieben
+					pending[name] = time.Now().Add(400 * time.Millisecond) // debounce: the file may still be being written
 				}
 			case err, ok := <-w.Errors:
 				if !ok {
@@ -275,7 +275,7 @@ func (l *Library) Watch(stop <-chan struct{}) error {
 	return nil
 }
 
-// Decode liest eine Audiodatei vollständig und wandelt sie in 48-kHz-Stereo-float32.
+// Decode reads an audio file completely and converts it to 48 kHz stereo float32.
 func Decode(path string) (*audio.Sound, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -302,7 +302,7 @@ func Decode(path string) (*audio.Sound, error) {
 		f.Close()
 		return nil, fmt.Errorf("dekodieren: %w", err)
 	}
-	defer s.Close() // schließt auch f
+	defer s.Close() // also closes f
 
 	if format.SampleRate <= 0 {
 		return nil, errors.New("ungültige Samplerate")

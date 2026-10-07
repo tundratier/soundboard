@@ -5,19 +5,19 @@ import (
 	"sync/atomic"
 )
 
-// MicReader liest das Mikrofon aus dem Ring und gleicht die Taktdrift zwischen Capture- und
-// Playback-Gerät per leicht variierender Wiedergaberate (lineare Interpolation) aus.
-// Die Rate wird über einen PI-Regler am Füllstand des Rings geführt.
+// MicReader reads the microphone from the ring and compensates clock drift between the capture and
+// playback devices by slightly varying the playback rate (linear interpolation).
+// The rate is steered by a PI controller on the ring's fill level.
 type MicReader struct {
 	ring   *Ring
-	target int // Ziel-Füllstand in Frames
+	target int // target fill level in frames
 
 	primed bool
-	frac   float64 // Position zwischen Frame 0 und 1 des Rings
-	avg    float64 // geglätteter Füllstand
-	integ  float64 // I-Anteil der Rate-Abweichung
+	frac   float64 // position between frame 0 and 1 of the ring
+	avg    float64 // smoothed fill level
+	integ  float64 // integral term of the rate deviation
 
-	// Statistik (atomar lesbar)
+	// Statistics (readable atomically)
 	Underruns atomic.Uint64
 	Overruns  atomic.Uint64
 	ratioBits atomic.Uint64
@@ -27,24 +27,24 @@ func NewMicReader(ring *Ring, targetFrames int) *MicReader {
 	return &MicReader{ring: ring, target: targetFrames, avg: float64(targetFrames)}
 }
 
-// Ratio liefert die aktuelle Rate (1.0 = nominal), für Diagnose.
+// Ratio returns the current rate (1.0 = nominal), for diagnostics.
 func (m *MicReader) Ratio() float64 { return math.Float64frombits(m.ratioBits.Load()) }
 
 const (
-	micKp        = 1e-5  // Rate-Abweichung pro Frame Füllstandsfehler
-	micKi        = 1e-8  // Integral pro Callback
-	micMaxDev    = 0.005 // ±0,5 % maximale Ratenabweichung
+	micKp        = 1e-5  // rate deviation per frame of fill-level error
+	micKi        = 1e-8  // integral per callback
+	micMaxDev    = 0.005 // ±0.5 % maximum rate deviation
 	micSmoothing = 0.2
 )
 
-// Add mischt (addiert) frames Frames des Mikrofons mit Faktor gain in out.
+// Add mixes (adds) the microphone frames into out with factor gain.
 func (m *MicReader) Add(out []float32, gain float32) {
 	frames := len(out) / Channels
 	avail := m.ring.Available()
 
 	if !m.primed {
 		if avail < m.target {
-			return // erst Zielfüllstand aufbauen
+			return // build up the target fill level first
 		}
 		m.primed = true
 		m.frac = 0
@@ -52,7 +52,7 @@ func (m *MicReader) Add(out []float32, gain float32) {
 		m.integ = 0
 	}
 
-	// Füllstand ist beim Eintritt sägezahnförmig (Capture liefert in Perioden) → glätten.
+	// The fill level is sawtooth-shaped on entry (capture delivers in periods) → smooth it.
 	m.avg += (float64(avail) - m.avg) * micSmoothing
 	err := m.avg - float64(m.target)
 	m.integ += err * micKi
@@ -61,7 +61,7 @@ func (m *MicReader) Add(out []float32, gain float32) {
 	ratio := 1 + dev
 	m.ratioBits.Store(math.Float64bits(ratio))
 
-	// Gewaltige Überfüllung (z. B. nach Stall) → hart auf Ziel zurück.
+	// Huge overfill (e.g. after a stall) → jump hard back to the target.
 	if avail > m.target*4+frames {
 		m.ring.skip(avail - m.target)
 		m.Overruns.Add(1)
@@ -70,7 +70,7 @@ func (m *MicReader) Add(out []float32, gain float32) {
 	}
 
 	for i := 0; i < frames; i++ {
-		// Für Interpolation werden Frame 0 und 1 benötigt.
+		// Interpolation needs frames 0 and 1.
 		if m.ring.Available() < 2 {
 			m.Underruns.Add(1)
 			m.primed = false

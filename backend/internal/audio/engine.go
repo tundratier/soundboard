@@ -7,31 +7,31 @@ import (
 	"time"
 )
 
-// Settings sind die Audio-Einstellungen, die die Engine umsetzt.
+// Settings are the audio settings the engine applies.
 type Settings struct {
-	InputID       string  `json:"inputDeviceId"`   // Mikrofon
-	MainID        string  `json:"mainDeviceId"`    // Mix aus Mikrofon + Effekten (z. B. CABLE Input)
-	MonitorID     string  `json:"monitorDeviceId"` // nur Effekte, z. B. Kopfhörer
+	InputID       string  `json:"inputDeviceId"`   // microphone
+	MainID        string  `json:"mainDeviceId"`    // mix of microphone + effects (e.g. CABLE Input)
+	MonitorID     string  `json:"monitorDeviceId"` // effects only, e.g. headphones
 	MicGain       float32 `json:"micGain"`
 	FxGainMain    float32 `json:"fxGainMain"`
 	FxGainMonitor float32 `json:"fxGainMonitor"`
 	PeriodMs      int     `json:"periodMs"`
 }
 
-// Event meldet Statuswechsel einer Kachel ("started" / "stopped").
+// Event reports a tile's state change ("started" / "stopped").
 type Event struct {
 	Type string `json:"type"`
 	Tile string `json:"tile"`
 }
 
-// RoleStatus beschreibt den Zustand einer der drei Geräte-Rollen.
+// RoleStatus describes the state of one of the three device roles.
 type RoleStatus struct {
 	DeviceID string `json:"deviceId"`
 	Running  bool   `json:"running"`
 	Error    string `json:"error,omitempty"`
 }
 
-// Status ist der Live-Zustand der Engine (für UI/Diagnose).
+// Status is the engine's live state (for UI/diagnostics).
 type Status struct {
 	Input        RoleStatus `json:"input"`
 	Main         RoleStatus `json:"main"`
@@ -50,7 +50,7 @@ type role struct {
 	name    string
 	wantID  string
 	stream  Stream
-	openID  string // ID, mit der der laufende Stream geöffnet wurde
+	openID  string // ID the running stream was opened with
 	openPer int
 	err     string
 	retryAt time.Time
@@ -58,7 +58,7 @@ type role struct {
 
 type endEv struct{ bus, tile string }
 
-// Engine verwaltet Geräte, Busse und den Wiedergabezustand.
+// Engine manages devices, buses and playback state.
 type Engine struct {
 	backend Backend
 
@@ -67,7 +67,7 @@ type Engine struct {
 	input   role
 	main    role
 	monitor role
-	names   map[string]string // Geräte-ID → Name (zuletzt gesehen)
+	names   map[string]string // device ID → name (last seen)
 	playing map[string]map[string]struct{}
 
 	mainBus, monBus *Bus
@@ -104,10 +104,10 @@ func NewEngine(b Backend) *Engine {
 	return e
 }
 
-// Events liefert Start-/Stop-Ereignisse. Der Kanal ist gepuffert; bei Rückstau werden Ereignisse verworfen.
+// Events delivers start/stop events. The channel is buffered; events are dropped under backpressure.
 func (e *Engine) Events() <-chan Event { return e.events }
 
-// Apply übernimmt neue Einstellungen; die Geräte werden asynchron (neu) geöffnet.
+// Apply takes over new settings; devices are (re)opened asynchronously.
 func (e *Engine) Apply(s Settings) {
 	e.applySettings(s)
 	select {
@@ -116,7 +116,7 @@ func (e *Engine) Apply(s Settings) {
 	}
 }
 
-// ApplyNow wie Apply, wartet aber, bis die Geräte geöffnet wurden (oder fehlschlugen).
+// ApplyNow is like Apply but waits until the devices have been opened (or failed).
 func (e *Engine) ApplyNow(s Settings) {
 	e.applySettings(s)
 	e.reconcile(true)
@@ -151,9 +151,9 @@ func (e *Engine) supervise() {
 	}
 }
 
-// reconcile bringt die laufenden Streams mit den Sollwerten in Einklang. force ignoriert die Retry-Pause.
+// reconcile brings the running streams in line with the desired state. force ignores the retry pause.
 func (e *Engine) reconcile(force bool) {
-	// Geräteliste außerhalb des Locks holen (kann dauern).
+	// Fetch the device list outside the lock (can take a while).
 	devs, derr := e.backend.Devices()
 
 	e.mu.Lock()
@@ -171,7 +171,7 @@ func (e *Engine) reconcile(force bool) {
 	e.reconcileInput(per, force)
 }
 
-// due prüft, ob eine Rolle (neu) geöffnet werden soll, und setzt ggf. Fehlertexte.
+// due checks whether a role should be (re)opened and sets error texts where needed.
 func (e *Engine) due(r *role, force bool) (string, bool) {
 	if r.wantID == "" {
 		r.err = ""
@@ -223,14 +223,14 @@ func (e *Engine) reconcileInput(per int, force bool) {
 	if !ok {
 		return
 	}
-	// Rückkopplungsschutz: der Ausgang des virtuellen Kabels darf nie als Mikrofon dienen,
-	// sonst hört sich der Gesprächspartner selbst.
+	// Feedback protection: the output end of the virtual cable must never serve as microphone,
+	// otherwise the other party hears themselves.
 	if strings.Contains(strings.ToLower(name), "cable output") {
 		r.err = "Rückkopplung: \"CABLE Output\" ist das Ausgabe-Ende dieser App und kann nicht als Mikrofon dienen"
 		r.retryAt = time.Now().Add(5 * time.Second)
 		return
 	}
-	ring := NewRing(SampleRate / 4) // 250 ms Reserve
+	ring := NewRing(SampleRate / 4) // 250 ms reserve
 	reader := NewMicReader(ring, per*SampleRate/1000*2)
 	s, err := e.backend.OpenCapture(r.wantID, per, func(in []float32) { ring.Write(in) }, func() { e.streamStopped(r) })
 	if err != nil {
@@ -252,7 +252,7 @@ func (e *Engine) closeInput() {
 	}
 }
 
-// closePlayback schließt einen Wiedergabestrom und räumt dessen Playing-Zustand auf. e.mu muss gehalten werden.
+// closePlayback closes a playback stream and cleans up its playing state. e.mu must be held.
 func (e *Engine) closePlayback(r *role, bus *Bus) {
 	if s := r.stream; s != nil {
 		r.stream = nil
@@ -268,8 +268,8 @@ func (e *Engine) closePlayback(r *role, bus *Bus) {
 	}
 }
 
-// streamStopped wird vom Backend gerufen, wenn ein Gerät unerwartet stoppt (z. B. abgesteckt).
-// Läuft auf einem Backend-Thread → in eigener Goroutine, damit Close() nicht im eigenen Callback hängt.
+// streamStopped is called by the backend when a device stops unexpectedly (e.g. unplugged).
+// Runs on a backend thread → in its own goroutine so Close() does not hang inside its own callback.
 func (e *Engine) streamStopped(r *role) {
 	go func() {
 		e.mu.Lock()
@@ -314,7 +314,7 @@ func (e *Engine) endLoop() {
 	}
 }
 
-// activeBuses liefert die Busse, deren Gerät aktuell läuft. e.mu muss gehalten werden.
+// activeBuses returns the buses whose device is currently running. e.mu must be held.
 func (e *Engine) activeBuses(monitorOnly bool) []*Bus {
 	var out []*Bus
 	if !monitorOnly && e.main.stream != nil {
@@ -326,7 +326,7 @@ func (e *Engine) activeBuses(monitorOnly bool) []*Bus {
 	return out
 }
 
-// Trigger löst eine Kachel gemäß ihres Modus aus.
+// Trigger triggers a tile according to its mode.
 func (e *Engine) Trigger(tile string, snd *Sound, gain, pan float32, mode PlayMode) {
 	if snd == nil || snd.Frames == 0 {
 		return
@@ -348,7 +348,7 @@ func (e *Engine) Trigger(tile string, snd *Sound, gain, pan float32, mode PlayMo
 	e.playLocked(tile, snd, gain, pan, mode == ModeLoop, false)
 }
 
-// Preview spielt einen Sound nur auf dem Monitor (Vorhören im Admin).
+// Preview plays a sound on the monitor only (audition in the admin).
 func (e *Engine) Preview(snd *Sound, gain, pan float32) {
 	if snd == nil || snd.Frames == 0 {
 		return
@@ -394,7 +394,7 @@ func (e *Engine) Stop(tile string) {
 	e.stopLocked(tile)
 }
 
-// StopPreview beendet das Vorhören.
+// StopPreview ends the preview.
 func (e *Engine) StopPreview() { e.Stop(previewTile) }
 
 func (e *Engine) StopAll() {
@@ -405,7 +405,7 @@ func (e *Engine) StopAll() {
 	}
 }
 
-// Playing liefert die IDs aktuell spielender Kacheln.
+// Playing returns the IDs of currently playing tiles.
 func (e *Engine) Playing() []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -420,7 +420,7 @@ func (e *Engine) Playing() []string {
 
 func (e *Engine) Devices() ([]DeviceInfo, error) { return e.backend.Devices() }
 
-// Status liefert den Live-Zustand.
+// Status returns the live state.
 func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()

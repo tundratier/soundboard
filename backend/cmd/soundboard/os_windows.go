@@ -26,17 +26,17 @@ var (
 	errAlreadyExists = syscall.Errno(183)
 )
 
-// acquireSingleInstance liefert false, wenn bereits eine Instanz läuft.
+// acquireSingleInstance returns false if an instance is already running.
 func acquireSingleInstance() bool {
 	name, _ := syscall.UTF16PtrFromString("Local\\SoundboardSingleInstance")
 	h, _, err := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(name)))
 	if h == 0 {
-		return true // im Zweifel starten
+		return true // start anyway when in doubt
 	}
-	return err != errAlreadyExists // Handle bleibt bis Prozessende offen
+	return err != errAlreadyExists // handle stays open until the process ends
 }
 
-// fatalBox zeigt eine Fehlermeldung (die GUI-exe hat keine Konsole) und beendet das Programm.
+// fatalBox shows an error message (the GUI exe has no console) and exits the program.
 func fatalBox(msg string) {
 	log.Printf("FATAL: %s", msg)
 	t, _ := syscall.UTF16PtrFromString("Soundboard")
@@ -53,7 +53,7 @@ func openBrowser(url string) {
 	}
 }
 
-// runTray zeigt das Tray-Symbol und blockiert bis „Beenden“. onQuit räumt auf.
+// runTray shows the tray icon and blocks until "Quit". onQuit cleans up.
 func runTray(adminURL, boardURL string, onQuit func()) {
 	systray.Run(func() {
 		systray.SetIcon(iconICO)

@@ -1,4 +1,4 @@
-# Cross-Compile-Umgebung: Go + MinGW-w64 (für cgo/malgo → Windows-exe)
+# Cross-compile environment: Go + MinGW-w64 (for cgo/malgo → Windows exe)
 FROM golang:1.27-bookworm
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 \

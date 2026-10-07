@@ -44,7 +44,7 @@ func (h *hub) broadcast(v any) {
 	for c := range h.clients {
 		select {
 		case c.send <- b:
-		default: // langsamer Client: Nachricht verwerfen; er holt sich den Zustand beim nächsten "hello"/Refetch
+		default: // slow client: drop the message; it catches up on the next "hello"/refetch
 		}
 	}
 }
@@ -63,10 +63,10 @@ type wsMsg struct {
 	Tile string `json:"tile,omitempty"`
 }
 
-// ws: Clients senden {"type":"trigger"|"stop"|"stopAll","tile":"…"} und erhalten
+// ws: clients send {"type":"trigger"|"stop"|"stopAll","tile":"…"} and receive
 // {"type":"hello","playing":[…]}, {"type":"started"|"stopped","tile":"…"}, {"type":"board"}.
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, nil) // prüft Origin gegen Host
+	conn, err := websocket.Accept(w, r, nil) // checks Origin against Host
 	if err != nil {
 		return
 	}
@@ -75,7 +75,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 
 	c := &client{send: make(chan []byte, 64)}
 	hello, _ := json.Marshal(map[string]any{"type": "hello", "playing": s.d.Engine.Playing()})
-	c.send <- hello // vor add(): sonst Race mit closeAll
+	c.send <- hello // before add(): otherwise races with closeAll
 	s.hub.add(c)
 	defer s.hub.remove(c)
 

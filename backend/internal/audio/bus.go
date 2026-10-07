@@ -7,7 +7,7 @@ import (
 
 const (
 	maxVoices   = 64
-	stopFadeLen = 240 // 5 ms bei 48 kHz: verhindert Knackser beim Abbrechen
+	stopFadeLen = 240 // 5 ms at 48 kHz: prevents clicks when aborting a sound
 	limThresh   = 0.95
 )
 
@@ -34,19 +34,19 @@ type voice struct {
 	pos      int
 	gL, gR   float32
 	loop     bool
-	fadeLeft int // >0: Voice wird ausgeblendet
+	fadeLeft int // >0: voice is fading out
 }
 
-// Bus mischt Voices (und optional das Mikrofon) für genau ein Ausgabegerät.
-// Jeder Bus hat eigene Voice-Cursor, weil jedes Gerät seine eigene Uhr hat.
-// Alle Zustände außer den Atomics gehören dem Audio-Thread; Steuerung läuft über cmds.
+// Bus mixes voices (and optionally the microphone) for exactly one output device.
+// Each bus has its own voice cursors because every device has its own clock.
+// All state except the atomics belongs to the audio thread; control goes through cmds.
 type Bus struct {
 	name string
 	cmds chan command
 
 	voices []voice
 
-	mic     atomic.Pointer[MicReader] // nur Main-Bus; wird beim (Wieder-)Öffnen des Mikrofons ersetzt
+	mic     atomic.Pointer[MicReader] // main bus only; replaced when the microphone is (re)opened
 	micGain atomic.Uint32
 	fxGain  atomic.Uint32
 
@@ -54,7 +54,7 @@ type Bus struct {
 	peak    atomic.Uint32
 	micPeak atomic.Uint32
 
-	// onEnd wird vom Audio-Thread aufgerufen, wenn die letzte Instanz einer Kachel endet.
+	// onEnd is called from the audio thread when the last instance of a tile ends.
 	onEnd func(bus, tile string)
 }
 
@@ -74,12 +74,12 @@ func newBus(name string, onEnd func(bus, tile string)) *Bus {
 func (b *Bus) SetFxGain(g float32)  { b.fxGain.Store(math.Float32bits(g)) }
 func (b *Bus) SetMicGain(g float32) { b.micGain.Store(math.Float32bits(g)) }
 
-// Peaks liefert die zuletzt gemessenen Spitzenpegel (Ausgang, Mikrofon) linear 0..1+.
+// Peaks returns the most recently measured peak levels (output, microphone), linear 0..1+.
 func (b *Bus) Peaks() (out, mic float32) {
 	return math.Float32frombits(b.peak.Load()), math.Float32frombits(b.micPeak.Load())
 }
 
-// send reiht ein Kommando ein; false, wenn die Queue voll ist.
+// send enqueues a command; returns false if the queue is full.
 func (b *Bus) send(c command) bool {
 	select {
 	case b.cmds <- c:
@@ -95,7 +95,7 @@ func (b *Bus) drain() {
 		case c := <-b.cmds:
 			switch c.kind {
 			case cmdPlay:
-				if len(b.voices) == maxVoices { // älteste verdrängen
+				if len(b.voices) == maxVoices { // evict the oldest
 					copy(b.voices, b.voices[1:])
 					b.voices = b.voices[:maxVoices-1]
 				}
@@ -119,7 +119,7 @@ func (b *Bus) drain() {
 	}
 }
 
-// Fill füllt einen interleaved-Stereo-Puffer. Läuft im Audio-Callback: keine Allokationen, keine Locks.
+// Fill fills an interleaved stereo buffer. Runs in the audio callback: no allocations, no locks.
 func (b *Bus) Fill(out []float32) {
 	for i := range out {
 		out[i] = 0
@@ -178,7 +178,7 @@ func (b *Bus) Fill(out []float32) {
 		vi++
 	}
 
-	// Limiter: sofortiger Angriff, ~100 ms Release.
+	// Limiter: instant attack, ~100 ms release.
 	const release = 0.0002
 	var pk float32
 	for f := 0; f < frames; f++ {
@@ -187,7 +187,7 @@ func (b *Bus) Fill(out []float32) {
 		if a := abs32(r); a > p {
 			p = a
 		}
-		// Benötigtes Gain für diesen Frame; das Release strebt dagegen (nicht gegen 1), damit nie überschritten wird.
+		// Gain required for this frame; the release moves toward it (not toward 1) so the threshold is never exceeded.
 		need := float32(1)
 		if p > limThresh {
 			need = limThresh / p
@@ -220,7 +220,7 @@ func (b *Bus) hasTile(tile string) bool {
 	return false
 }
 
-// storePeak hält den Spitzenwert mit sanftem Abfall, damit die UI (Polling) ihn nicht verpasst.
+// storePeak holds the peak value with a gentle decay so the UI (polling) does not miss it.
 func (b *Bus) storePeak(dst *atomic.Uint32, v float32) {
 	old := math.Float32frombits(dst.Load()) * 0.97
 	if v < old {
@@ -236,8 +236,8 @@ func abs32(v float32) float32 {
 	return v
 }
 
-// Balance wandelt einen Balance-Wert (-1 links … +1 rechts) in Kanalfaktoren um.
-// Wie bei einem Stereo-Balance-Regler: der gegenüberliegende Kanal wird abgesenkt, der andere bleibt.
+// Balance converts a balance value (-1 left … +1 right) into channel factors.
+// Like a stereo balance control: the opposite channel is attenuated, the other stays unchanged.
 func Balance(pan float32) (gL, gR float32) {
 	if pan < -1 {
 		pan = -1

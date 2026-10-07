@@ -53,7 +53,7 @@ select {
   color: var(--text-dim);
 }
 
-/* ---------- Buttons & Formularelemente ---------- */
+/* ---------- Buttons & form elements ---------- */
 
 .btn {
   display: inline-flex;
@@ -144,7 +144,7 @@ input[type='color'] {
   color: var(--text-dim);
 }
 
-/* ---------- Board (öffentliche Ansicht) ---------- */
+/* ---------- Board (public view) ---------- */
 
 .board-page {
   height: 100dvh;
@@ -375,7 +375,7 @@ input[type='color'] {
   color: var(--accent);
 }
 
-/* Board-Editor */
+/* Board editor */
 .editor-grid {
   display: grid;
   gap: 6px;

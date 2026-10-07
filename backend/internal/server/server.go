@@ -1,5 +1,5 @@
-// Package server liefert die Board-Ansicht (öffentlich im Netz) und die Admin-Oberfläche (nur localhost),
-// dazu REST- und WebSocket-Schnittstellen.
+// Package server serves the board view (public on the network) and the admin UI (localhost only),
+// plus REST and WebSocket interfaces.
 package server
 
 import (
@@ -27,9 +27,9 @@ import (
 	"soundboard/internal/store"
 )
 
-// Platform kapselt Betriebssystem-Funktionen, damit der Server plattformneutral bleibt (und testbar ist).
+// Platform wraps operating-system functions so the server stays platform-neutral (and testable).
 type Platform interface {
-	// SetDefaultDevice macht ein Gerät zum Standard. role: "communications" oder "all".
+	// SetDefaultDevice makes a device the default. role: "communications" or "all".
 	SetDefaultDevice(deviceID, role string) error
 }
 
@@ -38,7 +38,7 @@ type Deps struct {
 	Lib      *library.Library
 	Store    *store.Store
 	IconsDir string
-	Web      fs.FS // Frontend-Build (index.html im Wurzelverzeichnis)
+	Web      fs.FS // frontend build (index.html in the root directory)
 	Platform Platform
 	DataDir  string
 	Version  string
@@ -57,13 +57,13 @@ func New(d Deps) *Server {
 	return s
 }
 
-// Handler liefert den HTTP-Handler (für Tests und httptest).
+// Handler returns the HTTP handler (for tests and httptest).
 func (s *Server) Handler() http.Handler { return s.mux }
 
-// Broadcast sendet ein Ereignis an alle WebSocket-Clients.
+// Broadcast sends an event to all WebSocket clients.
 func (s *Server) Broadcast(v any) { s.hub.broadcast(v) }
 
-// Run verteilt Engine-Ereignisse und startet den HTTP-Server. Blockiert bis Shutdown.
+// Run distributes engine events and starts the HTTP server. Blocks until Shutdown.
 func (s *Server) Run() error {
 	cfg := s.d.Store.Get().Server
 	host := "127.0.0.1"
@@ -101,7 +101,7 @@ func (s *Server) pumpEvents() {
 
 func (s *Server) routes() {
 	m := s.mux
-	// öffentlich (Board im Netzwerk)
+	// public (board on the network)
 	m.HandleFunc("GET /api/board", s.getBoard)
 	m.HandleFunc("POST /api/trigger/{tile}", s.postTrigger)
 	m.HandleFunc("POST /api/stop/{tile}", s.postStop)
@@ -109,7 +109,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /ws", s.ws)
 	m.HandleFunc("GET /icons/{name}", s.getIcon)
 
-	// Admin: nur localhost
+	// Admin: localhost only
 	a := s.admin
 	m.HandleFunc("GET /api/admin/state", a(s.adminState))
 	m.HandleFunc("GET /api/admin/status", a(s.adminStatus))
@@ -131,8 +131,8 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /", s.static)
 }
 
-// admin schützt Handler: nur Loopback-Clients, nur localhost-Host-Header (gegen DNS-Rebinding),
-// und mutierende Requests brauchen einen eigenen Header (verhindert CSRF aus fremden Webseiten).
+// admin protects handlers: loopback clients only, localhost Host header only (against DNS rebinding),
+// and mutating requests need a custom header (prevents CSRF from foreign web pages).
 func (s *Server) admin(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -158,7 +158,7 @@ func (s *Server) admin(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// ---------- Hilfsfunktionen ----------
+// ---------- Helpers ----------
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -181,12 +181,12 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
-// ---------- Öffentliche Endpunkte ----------
+// ---------- Public endpoints ----------
 
 type boardResp struct {
 	Board   store.Board `json:"board"`
 	Playing []string    `json:"playing"`
-	Missing []string    `json:"missing"` // Kachel-IDs, deren Sound fehlt oder defekt ist
+	Missing []string    `json:"missing"` // tile IDs whose sound is missing or broken
 }
 
 func (s *Server) boardResp() boardResp {
@@ -204,7 +204,7 @@ func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, s.boardResp())
 }
 
-// trigger löst eine Kachel aus; ok=false bei unbekannter Kachel.
+// trigger triggers a tile; ok=false for an unknown tile.
 func (s *Server) trigger(id string) bool {
 	t, ok := s.d.Store.Get().Tile(id)
 	if !ok {
@@ -239,7 +239,7 @@ func (s *Server) getIcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", "sandbox") // SVG darf keine Skripte ausführen
+	w.Header().Set("Content-Security-Policy", "sandbox") // SVG must not execute scripts
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	http.ServeFile(w, r, filepath.Join(s.d.IconsDir, name))
 }
@@ -252,7 +252,7 @@ func iconExt(name string) bool {
 	return false
 }
 
-// ---------- Statische Dateien ----------
+// ---------- Static files ----------
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	s.serveFile(w, r, "index.html")
@@ -291,12 +291,12 @@ func (s *Server) serveFile(w http.ResponseWriter, r *http.Request, name string) 
 	io.Copy(w, f)
 }
 
-// ---------- Admin-Endpunkte ----------
+// ---------- Admin endpoints ----------
 
 type cableInfo struct {
 	Found    bool   `json:"found"`
-	InputID  string `json:"inputId,omitempty"`  // "CABLE Input" (Wiedergabe) → Main-Ausgang dieser App
-	OutputID string `json:"outputId,omitempty"` // "CABLE Output" (Aufnahme) → Mikrofon für Discord & Co.
+	InputID  string `json:"inputId,omitempty"`  // "CABLE Input" (playback) → main output of this app
+	OutputID string `json:"outputId,omitempty"` // "CABLE Output" (capture) → microphone for Discord & co.
 }
 
 func detectCable(devs []audio.DeviceInfo) cableInfo {
@@ -314,7 +314,7 @@ func detectCable(devs []audio.DeviceInfo) cableInfo {
 	return c
 }
 
-// LANURLs liefert die URLs, unter denen das Board im Netzwerk erreichbar ist.
+// LANURLs returns the URLs under which the board is reachable on the network.
 func LANURLs(port int) []string {
 	var out []string
 	addrs, _ := net.InterfaceAddrs()
@@ -423,7 +423,7 @@ const (
 	maxIconBytes  = 2 << 20
 )
 
-// uploadFiles liest multipart-Dateien (Feld "file") und übergibt sie an save.
+// uploadFiles reads multipart files (field "file") and hands them to save.
 func uploadFiles(w http.ResponseWriter, r *http.Request, limit int64, save func(name string, r io.Reader) (string, error)) {
 	r.Body = http.MaxBytesReader(w, r.Body, limit*20)
 	mr, err := r.MultipartReader()
@@ -471,7 +471,7 @@ func (s *Server) deleteSound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// getSoundFile liefert die Originaldatei (Vorhören im Browser ohne Audio-Engine).
+// getSoundFile returns the original file (audition in the browser without the audio engine).
 func (s *Server) getSoundFile(w http.ResponseWriter, r *http.Request) {
 	p := s.d.Lib.Path(r.PathValue("name"))
 	if p == "" {
@@ -526,7 +526,7 @@ func (s *Server) uploadIcon(w http.ResponseWriter, r *http.Request) {
 			os.Remove(f.Name())
 			return "", err
 		}
-		// bestehende Datei gleichen Namens wird ersetzt (Icon-Austausch)
+		// an existing file with the same name is replaced (icon swap)
 		if err := os.Rename(f.Name(), filepath.Join(s.d.IconsDir, name)); err != nil {
 			os.Remove(f.Name())
 			return "", err
@@ -551,7 +551,7 @@ func (s *Server) deleteIcon(w http.ResponseWriter, r *http.Request) {
 func (s *Server) postDefaultDevice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		DeviceID string `json:"deviceId"`
-		Role     string `json:"role"` // "communications" (Standard) | "all"
+		Role     string `json:"role"` // "communications" (default) | "all"
 	}
 	if !readJSON(w, r, &req) {
 		return

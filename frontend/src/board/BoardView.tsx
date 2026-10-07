@@ -106,7 +106,7 @@ function TileButton({
     <button
       className={`tile${playing ? ' playing' : ''}${missing ? ' missing' : ''}`}
       style={{ ['--tile-color' as string]: tile.color || DEFAULT_TILE_COLOR }}
-      // pointerdown statt click: ~100 ms weniger Latenz auf Touchscreens
+      // pointerdown instead of click: ~100 ms less latency on touch screens
       onPointerDown={(e) => {
         if (e.button === 0 || e.pointerType === 'touch') {
           e.preventDefault()

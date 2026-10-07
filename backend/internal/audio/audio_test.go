@@ -49,7 +49,7 @@ func TestRingWriteRead(t *testing.T) {
 	if r.Available() != 8 {
 		t.Fatalf("avail %d", r.Available())
 	}
-	// voll → Überschuss wird verworfen
+	// full → the surplus is dropped
 	if d := r.Write(make([]float32, 3*2)); d != 3 {
 		t.Fatalf("dropped %d want 3", d)
 	}
@@ -64,7 +64,7 @@ func TestBusMixAndLimiter(t *testing.T) {
 	if out[0] != 0.25 || out[1] != 0.125 {
 		t.Fatalf("mix: %v %v", out[0], out[1])
 	}
-	b.Fill(out) // restliche 36 Frames, dann Ende
+	b.Fill(out) // remaining 36 frames, then the end
 	select {
 	case tile := <-ended:
 		if tile != "a" {
@@ -77,7 +77,7 @@ func TestBusMixAndLimiter(t *testing.T) {
 		t.Fatalf("nach Ende muss Stille folgen, got %v", out[36*2])
 	}
 
-	// Limiter: zwei laute Sounds dürfen die Schwelle nicht überschreiten.
+	// Limiter: two loud sounds must not exceed the threshold.
 	b.send(command{kind: cmdPlay, tile: "x", snd: constSound(1000, 0.9), gL: 1, gR: 1})
 	b.send(command{kind: cmdPlay, tile: "y", snd: constSound(1000, 0.9), gL: 1, gR: 1})
 	b.Fill(out)
@@ -103,7 +103,7 @@ func TestBusStopFade(t *testing.T) {
 	}
 }
 
-// Simuliert zwei Uhren mit Drift: Capture liefert 10-ms-Perioden mit Rate (1+drift), Playback konsumiert nominal.
+// Simulates two clocks with drift: capture delivers 10 ms periods at rate (1+drift), playback consumes nominally.
 func TestMicReaderDriftConverges(t *testing.T) {
 	for _, drift := range []float64{0, 200e-6, -200e-6, 1500e-6} {
 		ring := NewRing(SampleRate / 4)
@@ -121,7 +121,7 @@ func TestMicReaderDriftConverges(t *testing.T) {
 		var cnt int
 		seconds := 60
 		for step := 0; step < seconds*100; step++ {
-			// Capture-Uhr: pro Playback-Periode kommen period*(1+drift) Frames an
+			// Capture clock: period*(1+drift) frames arrive per playback period
 			capAcc += float64(period) * (1 + drift)
 			for capAcc >= period {
 				ring.Write(in)
@@ -131,7 +131,7 @@ func TestMicReaderDriftConverges(t *testing.T) {
 				out[i] = 0
 			}
 			if step > 30*100 {
-				sumFill += float64(ring.Available()) // Füllstand beim Eintritt, so wie ihn der Regler sieht
+				sumFill += float64(ring.Available()) // fill level on entry, as the controller sees it
 				cnt++
 			}
 			m.Add(out, 1)
@@ -166,7 +166,7 @@ func TestMicReaderPassesSignal(t *testing.T) {
 	}
 }
 
-// --- Engine mit Fake-Backend ---
+// --- Engine with fake backend ---
 
 type fakeStream struct{}
 
@@ -248,7 +248,7 @@ func TestEngineRoutingAndModes(t *testing.T) {
 		t.Errorf("Monitor: %v", mon[10])
 	}
 
-	// toggle-Modus stoppt beim zweiten Druck
+	// toggle mode stops on the second press
 	e.Trigger("t2", snd, 1, 0, ModeToggle)
 	waitEvent(t, e, "started", "t2")
 	e.Trigger("t2", snd, 1, 0, ModeToggle)
@@ -256,7 +256,7 @@ func TestEngineRoutingAndModes(t *testing.T) {
 	fb.pump("phones", 480)
 	waitEvent(t, e, "stopped", "t2")
 
-	// Loop: läuft über das Soundende hinaus
+	// Loop: keeps running past the end of the sound
 	e.Trigger("loop", constSound(100, 0.1), 1, 0, ModeLoop)
 	waitEvent(t, e, "started", "loop")
 	fb.pump("cable", 1000)
@@ -268,7 +268,7 @@ func TestEngineRoutingAndModes(t *testing.T) {
 	fb.pump("phones", 480)
 	waitEvent(t, e, "stopped", "loop")
 
-	// Vorhören nur auf dem Monitor
+	// Preview on the monitor only
 	e.Preview(constSound(1000, 0.3), 1, 0)
 	if out := fb.pump("cable", 10); out[0] != 0 {
 		t.Error("Preview darf nicht auf Main laufen")

@@ -15,7 +15,7 @@ export function Admin() {
   const [status, setStatus] = useState<EngineStatus | null>(null)
   const [toast, setToast] = useState<{ msg: string; error: boolean } | null>(null)
 
-  // Lokale Entwürfe: werden nur beim ersten Laden aus dem Server-Zustand übernommen und dann automatisch gespeichert.
+  // Local drafts: taken from the server state only on the first load, then saved automatically.
   const [audio, setAudio] = useState<AudioSettings | null>(null)
   const [board, setBoard] = useState<Board | null>(null)
   const [server, setServer] = useState<ServerSettings | null>(null)
@@ -42,7 +42,7 @@ export function Admin() {
 
   useEffect(() => {
     load()
-    const t = window.setInterval(load, 2500) // Geräteliste, Sounds, Kabel-Erkennung aktuell halten
+    const t = window.setInterval(load, 2500) // keep device list, sounds and cable detection up to date
     return () => window.clearInterval(t)
   }, [load])
 
@@ -55,7 +55,7 @@ export function Admin() {
           const s = await api.status()
           if (!stop) setStatus(s)
         } catch {
-          /* ignorieren */
+          /* ignore */
         }
       }
       if (!stop) timer = window.setTimeout(tick, 120)
@@ -266,7 +266,7 @@ function AudioPanel({
   )
 }
 
-// ---------- Windows-Integration ----------
+// ---------- Windows integration ----------
 
 function WindowsPanel({ state, notify }: { state: AdminState; notify: Notify }) {
   const capture = state.devices.filter((d) => d.kind === 'capture')
@@ -325,7 +325,7 @@ function WindowsPanel({ state, notify }: { state: AdminState; notify: Notify }) 
   )
 }
 
-// ---------- Netzwerk ----------
+// ---------- Network ----------
 
 function NetworkPanel({
   state,

@@ -1,4 +1,4 @@
-// Package store hält die Konfiguration (config.json) und validiert Änderungen.
+// Package store holds the configuration (config.json) and validates changes.
 package store
 
 import (
@@ -21,7 +21,7 @@ const (
 
 type Icon struct {
 	Kind  string `json:"kind"`  // "emoji" | "file"
-	Value string `json:"value"` // Emoji bzw. Dateiname im icons/-Ordner
+	Value string `json:"value"` // emoji or file name in the icons/ folder
 }
 
 type Tile struct {
@@ -29,7 +29,7 @@ type Tile struct {
 	X     int            `json:"x"`
 	Y     int            `json:"y"`
 	Label string         `json:"label,omitempty"`
-	Sound string         `json:"sound"` // Dateiname im sounds/-Ordner
+	Sound string         `json:"sound"` // file name in the sounds/ folder
 	Icon  *Icon          `json:"icon,omitempty"`
 	Pan   float32        `json:"pan"`  // Balance -1 … +1
 	Gain  float32        `json:"gain"` // 0 … 2
@@ -46,7 +46,7 @@ type Board struct {
 
 type Server struct {
 	Port    int  `json:"port"`
-	BindLAN bool `json:"bindLan"` // true: im ganzen Netz erreichbar (Board), false: nur localhost
+	BindLAN bool `json:"bindLan"` // true: reachable on the whole network (board), false: localhost only
 }
 
 type Config struct {
@@ -65,7 +65,7 @@ func Default() Config {
 	}
 }
 
-// NewID erzeugt eine zufällige Kachel-ID.
+// NewID generates a random tile ID.
 func NewID() string {
 	b := make([]byte, 6)
 	rand.Read(b)
@@ -79,7 +79,7 @@ type Store struct {
 	cfg Config
 }
 
-// Open lädt die Konfiguration oder legt Defaults an. created ist true, wenn keine Datei existierte.
+// Open loads the configuration or creates defaults. created is true if no file existed.
 func Open(path string) (s *Store, created bool, err error) {
 	s = &Store{path: path, cfg: Default()}
 	b, err := os.ReadFile(path)
@@ -90,7 +90,7 @@ func Open(path string) (s *Store, created bool, err error) {
 		return nil, false, err
 	}
 	if err := json.Unmarshal(b, &s.cfg); err != nil {
-		// Defekte Datei sichern statt überschreiben.
+		// Back up a broken file instead of overwriting it.
 		_ = os.Rename(path, path+".broken")
 		s.cfg = Default()
 		return s, true, fmt.Errorf("config.json defekt (gesichert als .broken): %w", err)
@@ -108,7 +108,7 @@ func Open(path string) (s *Store, created bool, err error) {
 	return s, false, nil
 }
 
-// Get liefert eine Kopie der Konfiguration.
+// Get returns a copy of the configuration.
 func (s *Store) Get() Config {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -120,7 +120,7 @@ func clone(c Config) Config {
 	return c
 }
 
-// Update wendet fn auf eine Kopie an, validiert, speichert atomar und übernimmt die Änderung.
+// Update applies fn to a copy, validates, saves atomically and adopts the change.
 func (s *Store) Update(fn func(*Config) error) (Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -138,7 +138,7 @@ func (s *Store) Update(fn func(*Config) error) (Config, error) {
 	return clone(c), nil
 }
 
-// Save schreibt den aktuellen Stand (z. B. nach dem Anlegen der Defaults).
+// Save writes the current state (e.g. after creating the defaults).
 func (s *Store) Save() error {
 	_, err := s.Update(func(*Config) error { return nil })
 	return err
@@ -159,7 +159,7 @@ func writeAtomic(path string, c *Config) error {
 	return os.Rename(tmp, path)
 }
 
-// Validate korrigiert harmlose Werte (Clamping, Defaults) und lehnt Inkonsistenzen ab.
+// Validate fixes harmless values (clamping, defaults) and rejects inconsistencies.
 func Validate(c *Config) error {
 	a := &c.Audio
 	a.MicGain = clampf(a.MicGain, 0, 4)
@@ -222,7 +222,7 @@ func clampf(v, lo, hi float32) float32 {
 	return v
 }
 
-// Tile liefert eine Kachel per ID.
+// Tile returns a tile by ID.
 func (c Config) Tile(id string) (Tile, bool) {
 	for _, t := range c.Board.Tiles {
 		if t.ID == id {

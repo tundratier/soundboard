@@ -72,7 +72,7 @@ export function BoardEditor({
     } else if (moving) {
       const t = board.tiles.find((tt) => tt.id === moving)
       if (!t || (t.x === x && t.y === y)) return
-      // Tauschen, wenn das Ziel belegt ist
+      // Swap if the target is occupied
       setBoard({
         ...board,
         tiles: board.tiles.map((tt) => {

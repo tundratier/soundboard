@@ -1,5 +1,5 @@
-# Baut die Windows-exe(s) per Docker (cgo/MinGW) – kein C-Compiler auf dem Host nötig.
-# Aufruf: scripts\build-backend.ps1 [-Target spike|soundboard|all]
+# Builds the Windows exe(s) via Docker (cgo/MinGW) – no C compiler needed on the host.
+# Usage: scripts\build-backend.ps1 [-Target spike|soundboard|all]
 param([string]$Target = "all")
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot

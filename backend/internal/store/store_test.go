@@ -31,7 +31,7 @@ func TestStoreRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("Clamping/Default fehlt: %+v", c.Board.Tiles[0])
 	}
 
-	// doppelte Position wird abgelehnt, alter Stand bleibt
+	// duplicate position is rejected, previous state is kept
 	_, err = s2.Update(func(c *Config) error {
 		c.Board.Tiles[1].X = 0
 		return nil

@@ -1,8 +1,8 @@
 //go:build windows
 
-// Package winaudio kapselt Windows-spezifische Audio-Funktionen, die miniaudio nicht abdeckt:
-// das Setzen des Standard-(Kommunikations-)Geräts über das undokumentierte, aber seit Vista stabile
-// COM-Interface IPolicyConfig (das nutzen auch SoundSwitch, EarTrumpet & Co.).
+// Package winaudio wraps Windows-specific audio functions that miniaudio does not cover:
+// setting the default (communications) device via the undocumented but since-Vista stable
+// COM interface IPolicyConfig (also used by SoundSwitch, EarTrumpet & co.).
 package winaudio
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/go-ole/go-ole"
 )
 
-// Rollen (ERole)
+// Roles (ERole)
 const (
 	RoleConsole        = 0
 	RoleMultimedia     = 1
@@ -26,7 +26,7 @@ var (
 	iidPolicyConfig   = ole.NewGUID("{F8679F50-850A-41CF-9C72-430F290290C8}") // IPolicyConfig
 )
 
-// Reihenfolge der Methoden ist ABI-relevant.
+// The order of the methods is ABI-relevant.
 type policyConfigVtbl struct {
 	ole.IUnknownVtbl
 	GetMixFormat          uintptr
@@ -43,7 +43,7 @@ type policyConfigVtbl struct {
 	SetEndpointVisibility uintptr
 }
 
-// SetDefaultEndpoint setzt das Gerät mit der WASAPI-Endpoint-ID für die gegebenen Rollen als Standard.
+// SetDefaultEndpoint sets the device with the given WASAPI endpoint ID as default for the given roles.
 func SetDefaultEndpoint(deviceID string, roles ...int) error {
 	if len(roles) == 0 {
 		return fmt.Errorf("keine Rolle angegeben")
@@ -51,7 +51,7 @@ func SetDefaultEndpoint(deviceID string, roles ...int) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if err := ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED); err != nil {
-		// S_FALSE (bereits initialisiert) wird von go-ole als Fehler geliefert; weiter, falls das Apartment passt.
+		// S_FALSE (already initialized) is returned as an error by go-ole; continue if the apartment matches.
 		if oe, ok := err.(*ole.OleError); !ok || (oe.Code() != 1 /* S_FALSE */ && oe.Code() != 0x80010106 /* RPC_E_CHANGED_MODE */) {
 			return fmt.Errorf("CoInitializeEx: %w", err)
 		}

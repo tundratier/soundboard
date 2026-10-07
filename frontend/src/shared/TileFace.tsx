@@ -2,7 +2,7 @@ import type { Tile } from './types'
 
 export const DEFAULT_TILE_COLOR = '#3b4252'
 
-/** Icon einer Kachel: Emoji oder hochgeladenes Bild. */
+/** Icon of a tile: emoji or uploaded image. */
 export function TileIconView({ tile }: { tile: Pick<Tile, 'icon' | 'label' | 'sound'> }) {
   const icon = tile.icon
   if (icon?.kind === 'file') return <img className="tile-img" src={`/icons/${encodeURIComponent(icon.value)}`} alt="" draggable={false} />

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-/** Ruft save(value) verzögert auf, wenn sich value ändert (nicht beim ersten Rendern). */
+/** Calls save(value) with a delay when value changes (not on the first render). */
 export function useDebouncedSave<T>(value: T | null, save: (v: T) => void, delayMs = 500) {
   const first = useRef(true)
   const saveRef = useRef(save)

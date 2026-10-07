@@ -1,4 +1,4 @@
-/** Pegelanzeige: linearer Peak (0…1+) → dB-Skala von -60 bis 0 dBFS. */
+/** Level meter: linear peak (0…1+) → dB scale from -60 to 0 dBFS. */
 export function Meter({ value, label }: { value: number; label?: string }) {
   const db = value > 0.000001 ? 20 * Math.log10(value) : -120
   const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100))

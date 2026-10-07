@@ -1,5 +1,5 @@
-// Spiegel der Go-Strukturen (backend/internal/store, audio, library, server).
-// Bei Änderungen am Backend-Datenmodell hier nachziehen.
+// Mirror of the Go structures (backend/internal/store, audio, library, server).
+// When the backend data model changes, update this file accordingly.
 
 export type PlayMode = 'oneshot' | 'restart' | 'toggle' | 'loop'
 

@@ -1,5 +1,5 @@
-# Kompletter Build: Frontend (Vite) → backend/web/dist → Windows-exe (Docker/MinGW) → dist\soundboard.exe
-# Voraussetzungen: Node.js/npm und Docker. Kein Go und kein C-Compiler auf dem Host nötig.
+# Full build: frontend (Vite) → backend/web/dist → Windows exe (Docker/MinGW) → dist\soundboard.exe
+# Prerequisites: Node.js/npm and Docker. No Go and no C compiler needed on the host.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 

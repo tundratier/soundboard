@@ -20,7 +20,7 @@ func TestDecodeResamplesToStereo48k(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 0,4 s bei 48 kHz ≈ 19200 Frames
+	// 0.4 s at 48 kHz ≈ 19200 frames
 	if snd.Frames < 19000 || snd.Frames > 19400 {
 		t.Fatalf("Frames = %d", snd.Frames)
 	}
