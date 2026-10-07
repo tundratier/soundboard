@@ -1,0 +1,334 @@
+import { useRef, useState } from 'react'
+import { LayoutGrid, Play, Square, Trash2, Upload, X, Zap } from 'lucide-react'
+import { api } from '../shared/api'
+import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
+import { PLAY_MODES, type Board, type SoundInfo, type Tile } from '../shared/types'
+import { SOUND_DRAG_TYPE } from './SoundsPanel'
+
+const TILE_DRAG_TYPE = 'application/x-soundboard-tile'
+const MAX_GRID = 12
+const EMOJIS = '🔔 🎺 🥁 🎸 🎹 🎤 👏 😂 🤣 😱 😡 👍 👎 🔥 💥 🎉 🚨 📣 🐔 🐶 🐱 🦆 🐸 🚀 ⚡ 💀 👻 🧨 🛎️ 📯 🎬 🍺 ❤️ ⭐ ✅ ❌ 🤔 😴 🙏 🎵'.split(' ')
+
+const newId = () => [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('')
+
+export function BoardEditor({
+  board,
+  setBoard,
+  sounds,
+  icons,
+  onIconsChanged,
+  notify,
+}: {
+  board: Board
+  setBoard: (b: Board) => void
+  sounds: SoundInfo[]
+  icons: string[]
+  onIconsChanged: () => void
+  notify: (msg: string, error?: boolean) => void
+}) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null)
+
+  const tileAt = (x: number, y: number) => board.tiles.find((t) => t.x === x && t.y === y)
+  const sel = board.tiles.find((t) => t.id === selected) ?? null
+  const hidden = board.tiles.filter((t) => t.x >= board.cols || t.y >= board.rows)
+
+  const updateTile = (id: string, patch: Partial<Tile>) =>
+    setBoard({ ...board, tiles: board.tiles.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
+
+  const removeTile = (id: string) => {
+    setBoard({ ...board, tiles: board.tiles.filter((t) => t.id !== id) })
+    setSelected(null)
+  }
+
+  const createTile = (x: number, y: number, sound = ''): Tile => {
+    const t: Tile = {
+      id: newId(),
+      x,
+      y,
+      sound,
+      label: sound ? sound.replace(/\.[^.]+$/, '') : undefined,
+      pan: 0,
+      gain: 1,
+      mode: 'oneshot',
+    }
+    setBoard({ ...board, tiles: [...board.tiles, t] })
+    return t
+  }
+
+  const onDrop = (e: React.DragEvent, x: number, y: number) => {
+    e.preventDefault()
+    setOver(null)
+    const existing = tileAt(x, y)
+    const sound = e.dataTransfer.getData(SOUND_DRAG_TYPE)
+    const moving = e.dataTransfer.getData(TILE_DRAG_TYPE)
+    if (sound) {
+      if (existing) {
+        updateTile(existing.id, { sound, label: existing.label || sound.replace(/\.[^.]+$/, '') })
+        setSelected(existing.id)
+      } else {
+        setSelected(createTile(x, y, sound).id)
+      }
+    } else if (moving) {
+      const t = board.tiles.find((tt) => tt.id === moving)
+      if (!t || (t.x === x && t.y === y)) return
+      // Tauschen, wenn das Ziel belegt ist
+      setBoard({
+        ...board,
+        tiles: board.tiles.map((tt) => {
+          if (tt.id === t.id) return { ...tt, x, y }
+          if (existing && tt.id === existing.id) return { ...tt, x: t.x, y: t.y }
+          return tt
+        }),
+      })
+    }
+  }
+
+  const resize = (cols: number, rows: number) => {
+    const c = Math.max(1, Math.min(MAX_GRID, cols || 1))
+    const r = Math.max(1, Math.min(MAX_GRID, rows || 1))
+    setBoard({ ...board, cols: c, rows: r })
+  }
+
+  const cells = []
+  for (let y = 0; y < board.rows; y++) {
+    for (let x = 0; x < board.cols; x++) {
+      const t = tileAt(x, y)
+      const key = `${x},${y}`
+      cells.push(
+        <div
+          key={key}
+          className={`cell${over === key ? ' dragover' : ''}${t && t.id === selected ? ' selected' : ''}`}
+          draggable={!!t}
+          onDragStart={(e) => t && (e.dataTransfer.setData(TILE_DRAG_TYPE, t.id), (e.dataTransfer.effectAllowed = 'move'))}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setOver(key)
+          }}
+          onDragLeave={() => setOver((o) => (o === key ? null : o))}
+          onDrop={(e) => onDrop(e, x, y)}
+          onClick={() => setSelected(t ? t.id : createTile(x, y).id)}
+          title={t ? 'Bearbeiten · ziehen zum Verschieben' : 'Klicken zum Anlegen · Sound hierher ziehen'}
+        >
+          {t ? (
+            <div className="tile" style={{ ['--tile-color' as string]: t.color || DEFAULT_TILE_COLOR }}>
+              <TileIconView tile={t} />
+              <span className="tile-label">{tileLabel(t)}</span>
+            </div>
+          ) : (
+            <span>+</span>
+          )}
+        </div>,
+      )
+    }
+  }
+
+  return (
+    <section className="card">
+      <h2>
+        <LayoutGrid size={18} /> Board
+      </h2>
+      <div className="row">
+        <div className="field" style={{ flex: 3 }}>
+          <label>Name</label>
+          <input type="text" value={board.name} onChange={(e) => setBoard({ ...board, name: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Spalten (x)</label>
+          <input type="number" min={1} max={MAX_GRID} value={board.cols} onChange={(e) => resize(+e.target.value, board.rows)} />
+        </div>
+        <div className="field">
+          <label>Zeilen (y)</label>
+          <input type="number" min={1} max={MAX_GRID} value={board.rows} onChange={(e) => resize(board.cols, +e.target.value)} />
+        </div>
+      </div>
+      {hidden.length > 0 && (
+        <div className="note warn">
+          {hidden.length} Kachel(n) liegen außerhalb des Rasters und sind ausgeblendet (sie bleiben gespeichert, solange du das Raster nicht wieder vergrößerst und sie löschst).
+        </div>
+      )}
+      <div className="editor-grid" style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))` }}>
+        {cells}
+      </div>
+      {sel && (
+        <TileEditor
+          key={sel.id}
+          tile={sel}
+          sounds={sounds}
+          icons={icons}
+          onIconsChanged={onIconsChanged}
+          onChange={(p) => updateTile(sel.id, p)}
+          onRemove={() => removeTile(sel.id)}
+          onClose={() => setSelected(null)}
+          notify={notify}
+        />
+      )}
+    </section>
+  )
+}
+
+function TileEditor({
+  tile,
+  sounds,
+  icons,
+  onIconsChanged,
+  onChange,
+  onRemove,
+  onClose,
+  notify,
+}: {
+  tile: Tile
+  sounds: SoundInfo[]
+  icons: string[]
+  onIconsChanged: () => void
+  onChange: (p: Partial<Tile>) => void
+  onRemove: () => void
+  onClose: () => void
+  notify: (msg: string, error?: boolean) => void
+}) {
+  const iconRef = useRef<HTMLInputElement>(null)
+  const knownSound = sounds.some((s) => s.name === tile.sound)
+  const mode = PLAY_MODES.find((m) => m.value === tile.mode)
+  const balLabel = tile.pan === 0 ? 'Mitte' : tile.pan < 0 ? `links ${Math.round(-tile.pan * 100)} %` : `rechts ${Math.round(tile.pan * 100)} %`
+
+  const uploadIcon = async (files: File[]) => {
+    if (!files.length) return
+    try {
+      const r = await api.upload('icons', files)
+      if (r.errors.length) notify(r.errors.join('; '), true)
+      if (r.saved[0]) onChange({ icon: { kind: 'file', value: r.saved[0] } })
+    } catch (e) {
+      notify((e as Error).message, true)
+    }
+    onIconsChanged()
+  }
+
+  const preview = () => api.preview(tile.sound, tile.gain, tile.pan).catch((e) => notify(e.message, true))
+
+  return (
+    <div className="card" style={{ background: 'var(--bg-3)' }}>
+      <div className="row">
+        <h3 className="grow">
+          Kachel ({tile.x + 1}, {tile.y + 1})
+        </h3>
+        <button className="btn small" onClick={onClose} title="Schließen">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="field">
+        <label>Sound</label>
+        <div className="row" style={{ flexWrap: 'nowrap' }}>
+          <select value={tile.sound} onChange={(e) => onChange({ sound: e.target.value, label: tile.label || e.target.value.replace(/\.[^.]+$/, '') })}>
+            <option value="">– kein Sound –</option>
+            {!knownSound && tile.sound && <option value={tile.sound}>{tile.sound} (fehlt)</option>}
+            {sounds
+              .filter((s) => !s.error)
+              .map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+          </select>
+          <button className="btn" disabled={!knownSound} onClick={preview} title="Vorhören auf dem Monitor">
+            <Play size={14} />
+          </button>
+          <button className="btn" onClick={() => api.previewStop()} title="Vorhören stoppen">
+            <Square size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Beschriftung</label>
+        <input type="text" value={tile.label ?? ''} placeholder="(Dateiname)" onChange={(e) => onChange({ label: e.target.value })} />
+      </div>
+
+      <div className="field">
+        <div className="label">Icon</div>
+        <div className="emoji-row">
+          <button className={!tile.icon ? 'active' : ''} onClick={() => onChange({ icon: undefined })} title="Kein Icon">
+            ∅
+          </button>
+          {EMOJIS.map((em) => (
+            <button key={em} className={tile.icon?.kind === 'emoji' && tile.icon.value === em ? 'active' : ''} onClick={() => onChange({ icon: { kind: 'emoji', value: em } })}>
+              {em}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ marginTop: 4 }}>
+          <input
+            type="text"
+            style={{ width: 120 }}
+            placeholder="Eigenes Emoji"
+            value={tile.icon?.kind === 'emoji' ? tile.icon.value : ''}
+            onChange={(e) => onChange({ icon: e.target.value ? { kind: 'emoji', value: e.target.value.slice(0, 8) } : undefined })}
+          />
+          <button className="btn small" onClick={() => iconRef.current?.click()}>
+            <Upload size={13} /> Bild hochladen
+          </button>
+          <input ref={iconRef} type="file" hidden accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*" onChange={(e) => (uploadIcon([...(e.target.files ?? [])]), (e.target.value = ''))} />
+        </div>
+        {icons.length > 0 && (
+          <div className="icon-files" style={{ marginTop: 4 }}>
+            {icons.map((name) => (
+              <div key={name} className={`ic${tile.icon?.kind === 'file' && tile.icon.value === name ? ' active' : ''}`} onClick={() => onChange({ icon: { kind: 'file', value: name } })} title={name}>
+                <img src={`/icons/${encodeURIComponent(name)}`} alt={name} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="field">
+        <label>
+          <span>Balance</span>
+          <span>{balLabel}</span>
+        </label>
+        <input type="range" min={-1} max={1} step={0.05} value={tile.pan} onChange={(e) => onChange({ pan: +e.target.value })} onDoubleClick={() => onChange({ pan: 0 })} />
+      </div>
+      <div className="field">
+        <label>
+          <span>Lautstärke</span>
+          <span>{Math.round(tile.gain * 100)} %</span>
+        </label>
+        <input type="range" min={0} max={2} step={0.05} value={tile.gain} onChange={(e) => onChange({ gain: +e.target.value })} onDoubleClick={() => onChange({ gain: 1 })} />
+      </div>
+
+      <div className="row">
+        <div className="field">
+          <label>Verhalten</label>
+          <select value={tile.mode} onChange={(e) => onChange({ mode: e.target.value as Tile['mode'] })}>
+            {PLAY_MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field" style={{ flex: 0 }}>
+          <label>Farbe</label>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input type="color" value={tile.color || DEFAULT_TILE_COLOR} onChange={(e) => onChange({ color: e.target.value })} />
+            {tile.color && (
+              <button className="btn small" onClick={() => onChange({ color: undefined })} title="Standardfarbe">
+                ∅
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="note">{mode?.hint}</div>
+
+      <div className="row">
+        <button className="btn" disabled={!knownSound} onClick={() => api.trigger(tile.id).catch((e) => notify(e.message, true))} title="Löst die Kachel wie im Board aus (Hauptausgang + Monitor)">
+          <Zap size={14} /> Live auslösen
+        </button>
+        <div className="grow" />
+        <button className="btn danger" onClick={onRemove}>
+          <Trash2 size={14} /> Kachel löschen
+        </button>
+      </div>
+    </div>
+  )
+}
