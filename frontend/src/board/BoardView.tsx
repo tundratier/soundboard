@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Maximize, Minimize, Repeat, Square, TriangleAlert } from 'lucide-react'
+import { Maximize, Minimize, Repeat, Square, Sun, SunDim, TriangleAlert } from 'lucide-react'
 import { api } from '../shared/api'
 import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
 import type { BoardResponse, Tile } from '../shared/types'
 import { useBoardSocket } from '../shared/useBoardSocket'
+import { useKeepAwake } from '../shared/useKeepAwake'
 
 export function BoardView() {
   const [data, setData] = useState<BoardResponse | null>(null)
@@ -21,6 +22,7 @@ export function BoardView() {
   }, [])
 
   const { connected, playing, send } = useBoardSocket(refetch)
+  const keepAwake = useKeepAwake()
 
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement)
@@ -73,6 +75,19 @@ export function BoardView() {
         <div className="grow" />
         <button className="btn danger" onPointerDown={stopAll} title="Alle Sounds stoppen">
           <Square size={16} /> Stopp
+        </button>
+        <button
+          className={`btn icon${keepAwake.active ? ' active' : ''}`}
+          onClick={keepAwake.toggle}
+          title={
+            !keepAwake.wanted
+              ? 'Display darf ausgehen – antippen, um es wach zu halten'
+              : keepAwake.active
+                ? 'Display bleibt an – antippen zum Ausschalten'
+                : 'Display wird beim nächsten Antippen wach gehalten'
+          }
+        >
+          {keepAwake.wanted ? <Sun size={18} /> : <SunDim size={18} />}
         </button>
         {document.fullscreenEnabled && (
           <button className="btn icon" onClick={toggleFullscreen} title="Vollbild">

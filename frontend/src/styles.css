@@ -87,6 +87,10 @@ select {
 .btn.icon {
   padding: 7px;
 }
+.btn.active {
+  border-color: var(--warn);
+  color: var(--warn);
+}
 .btn.small {
   padding: 3px 8px;
   font-size: 13px;
