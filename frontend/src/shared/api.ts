@@ -1,4 +1,4 @@
-import type { AdminState, AudioSettings, Board, BoardResponse, EngineStatus, ServerSettings } from './types'
+import type { AdminState, AudioSettings, Board, BoardResponse, BoardSummary, EngineStatus, ServerSettings } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -35,7 +35,8 @@ const json = (method: string, body: unknown): RequestInit => ({
 
 export const api = {
   // public
-  board: () => request<BoardResponse>('/api/board'),
+  boards: () => request<BoardSummary[]>('/api/boards'),
+  board: (id: string) => request<BoardResponse>(`/api/boards/${encodeURIComponent(id)}`),
   trigger: (tile: string) => request<void>(`/api/trigger/${encodeURIComponent(tile)}`, { method: 'POST' }),
   stopAll: () => request<void>('/api/stopall', { method: 'POST' }),
 
@@ -43,7 +44,7 @@ export const api = {
   state: () => request<AdminState>('/api/admin/state'),
   status: () => request<EngineStatus>('/api/admin/status'),
   putAudio: (a: AudioSettings) => request<AudioSettings>('/api/admin/audio', json('PUT', a)),
-  putBoard: (b: Board) => request<Board>('/api/admin/board', json('PUT', b)),
+  putBoards: (b: Board[]) => request<Board[]>('/api/admin/boards', json('PUT', b)),
   putServer: (s: ServerSettings) =>
     request<{ server: ServerSettings; restartRequired: boolean }>('/api/admin/server', json('PUT', s)),
   preview: (sound: string, gain: number, pan: number) =>

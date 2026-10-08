@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { LayoutGrid, Play, Square, Trash2, Upload, X, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, LayoutGrid, Play, Square, Trash2, Upload, X, Zap } from 'lucide-react'
 import { api } from '../shared/api'
+import { SLUG_MAX, slugify } from '../shared/slug'
 import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
 import { PLAY_MODES, type Board, type SoundInfo, type Tile } from '../shared/types'
 import { SOUND_DRAG_TYPE } from './SoundsPanel'
@@ -14,6 +15,11 @@ const newId = () => [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.
 export function BoardEditor({
   board,
   setBoard,
+  otherIds,
+  canMoveLeft,
+  canMoveRight,
+  onMove,
+  onDelete,
   sounds,
   icons,
   onIconsChanged,
@@ -21,6 +27,11 @@ export function BoardEditor({
 }: {
   board: Board
   setBoard: (b: Board) => void
+  otherIds: string[] // IDs (URL paths) of the other boards, to keep the path unique
+  canMoveLeft: boolean
+  canMoveRight: boolean
+  onMove: (dir: -1 | 1) => void
+  onDelete?: () => void // undefined: the last remaining board cannot be deleted
   sounds: SoundInfo[]
   icons: string[]
   onIconsChanged: () => void
@@ -125,14 +136,34 @@ export function BoardEditor({
 
   return (
     <section className="card">
-      <h2>
-        <LayoutGrid size={18} /> Board
-      </h2>
+      <div className="row">
+        <h2 className="grow">
+          <LayoutGrid size={18} /> Board
+        </h2>
+        <button className="btn small" disabled={!canMoveLeft} onClick={() => onMove(-1)} title="Tab nach links verschieben">
+          <ArrowLeft size={13} />
+        </button>
+        <button className="btn small" disabled={!canMoveRight} onClick={() => onMove(1)} title="Tab nach rechts verschieben">
+          <ArrowRight size={13} />
+        </button>
+        <a className="btn small" href={`/boards/${encodeURIComponent(board.id)}`} target="_blank" rel="noreferrer" title="Dieses Board im Browser öffnen">
+          <ExternalLink size={13} /> Öffnen
+        </a>
+        <button className="btn small danger" disabled={!onDelete} onClick={onDelete} title={onDelete ? 'Board löschen' : 'Das letzte Board kann nicht gelöscht werden'}>
+          <Trash2 size={13} /> Löschen
+        </button>
+      </div>
       <div className="row">
         <div className="field" style={{ flex: 3 }}>
           <label>Name</label>
           <input type="text" value={board.name} onChange={(e) => setBoard({ ...board, name: e.target.value })} />
         </div>
+        <div className="field" style={{ flex: 3 }}>
+          <label>Pfad (URL)</label>
+          <SlugInput value={board.id} otherIds={otherIds} onCommit={(id) => setBoard({ ...board, id })} notify={notify} />
+        </div>
+      </div>
+      <div className="row">
         <div className="field">
           <label>Spalten (x)</label>
           <input type="number" min={1} max={MAX_GRID} value={board.cols} onChange={(e) => resize(+e.target.value, board.rows)} />
@@ -329,6 +360,56 @@ function TileEditor({
           <Trash2 size={14} /> Kachel löschen
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Editor for the board's URL path. Typing is free; the value is normalized and checked for duplicates
+ * only when the field loses focus, so the path never changes while the user is still typing.
+ */
+function SlugInput({
+  value,
+  otherIds,
+  onCommit,
+  notify,
+}: {
+  value: string
+  otherIds: string[]
+  onCommit: (id: string) => void
+  notify: (msg: string, error?: boolean) => void
+}) {
+  const [text, setText] = useState(value)
+  // follow external changes (e.g. switching boards)
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setText(value)
+  }
+
+  const commit = () => {
+    const id = text.trim() === '' ? value : slugify(text)
+    if (otherIds.includes(id)) {
+      notify(`Der Pfad „${id}“ wird schon von einem anderen Board verwendet.`, true)
+      setText(value)
+      return
+    }
+    setText(id)
+    if (id !== value) onCommit(id)
+  }
+
+  return (
+    <div className="slug-input">
+      <span>/boards/</span>
+      <input
+        type="text"
+        value={text}
+        maxLength={SLUG_MAX + 10}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        spellCheck={false}
+      />
     </div>
   )
 }

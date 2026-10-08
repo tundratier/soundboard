@@ -25,8 +25,14 @@ geöffnet und ein Testton angelegt.
 
 | Adresse | Wer | Was |
 |---|---|---|
-| `http://localhost:8723/admin` | nur dieser Rechner | Geräte, Board, Sounds, Icons |
-| `http://<IP>:8723/` | alle im Netz | Board mit Kacheln (QR-Code in der Verwaltung) |
+| `http://localhost:8723/admin` | nur dieser Rechner | Geräte, Boards (als Tabs), Sounds, Icons |
+| `http://<IP>:8723/boards` | alle im Netz | Übersicht aller Boards (QR-Code in der Verwaltung; `/` leitet hierher um) |
+| `http://<IP>:8723/boards/<pfad>` | alle im Netz | ein Board mit seinen Kacheln |
+
+Boards legst du in der Verwaltung über das „+ Board“ im Tab-Streifen an. Der Pfad (`<pfad>`) wird aus dem Namen
+erzeugt (`Zum Lachen` → `/boards/zum-lachen`) und lässt sich pro Board ändern; die Reihenfolge der Tabs ist auch
+die Reihenfolge in der Übersicht. Eine ältere `config.json` mit nur einem Board wird beim ersten Start migriert
+(das Original bleibt als `config.json.v1.bak` liegen).
 
 Daten liegen in `%APPDATA%\Soundboard` (`config.json`, `sounds\`, `icons\`, `soundboard.log`).
 Liegt ein Ordner `data` neben der exe, wird stattdessen er benutzt (portabel).

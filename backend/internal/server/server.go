@@ -102,7 +102,8 @@ func (s *Server) pumpEvents() {
 func (s *Server) routes() {
 	m := s.mux
 	// public (board on the network)
-	m.HandleFunc("GET /api/board", s.getBoard)
+	m.HandleFunc("GET /api/boards", s.getBoards)
+	m.HandleFunc("GET /api/boards/{id}", s.getBoard)
 	m.HandleFunc("POST /api/trigger/{tile}", s.postTrigger)
 	m.HandleFunc("POST /api/stop/{tile}", s.postStop)
 	m.HandleFunc("POST /api/stopall", s.postStopAll)
@@ -114,7 +115,7 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/admin/state", a(s.adminState))
 	m.HandleFunc("GET /api/admin/status", a(s.adminStatus))
 	m.HandleFunc("PUT /api/admin/audio", a(s.putAudio))
-	m.HandleFunc("PUT /api/admin/board", a(s.putBoard))
+	m.HandleFunc("PUT /api/admin/boards", a(s.putBoards))
 	m.HandleFunc("PUT /api/admin/server", a(s.putServer))
 	m.HandleFunc("POST /api/admin/sounds", a(s.uploadSounds))
 	m.HandleFunc("DELETE /api/admin/sounds/{name}", a(s.deleteSound))
@@ -127,6 +128,12 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/admin/qr", a(s.getQR))
 	m.HandleFunc("GET /admin", a(s.index))
 	m.HandleFunc("GET /admin/", a(s.index))
+
+	// SPA pages for the board views; the root redirects to the board overview
+	m.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/boards", http.StatusFound) })
+	m.HandleFunc("GET /boards", s.index)
+	m.HandleFunc("GET /boards/{$}", s.index)
+	m.HandleFunc("GET /boards/{id}", s.index)
 
 	m.HandleFunc("GET /", s.static)
 }
@@ -172,7 +179,7 @@ func httpErr(w http.ResponseWriter, code int, msg string) {
 }
 
 func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20) // the board list can hold up to 50 boards of 12×12 tiles
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(v); err != nil {
 		httpErr(w, 400, "ungültiges JSON: "+err.Error())
@@ -189,10 +196,9 @@ type boardResp struct {
 	Missing []string    `json:"missing"` // tile IDs whose sound is missing or broken
 }
 
-func (s *Server) boardResp() boardResp {
-	cfg := s.d.Store.Get()
-	resp := boardResp{Board: cfg.Board, Playing: s.d.Engine.Playing(), Missing: []string{}}
-	for _, t := range cfg.Board.Tiles {
+func (s *Server) boardResp(b store.Board) boardResp {
+	resp := boardResp{Board: b, Playing: s.d.Engine.Playing(), Missing: []string{}}
+	for _, t := range b.Tiles {
 		if s.d.Lib.Get(t.Sound) == nil {
 			resp.Missing = append(resp.Missing, t.ID)
 		}
@@ -201,7 +207,43 @@ func (s *Server) boardResp() boardResp {
 }
 
 func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, s.boardResp())
+	b, ok := s.d.Store.Get().Board(r.PathValue("id"))
+	if !ok {
+		httpErr(w, 404, "Board nicht gefunden")
+		return
+	}
+	writeJSON(w, 200, s.boardResp(b))
+}
+
+// boardSummary is one entry of the board overview: just enough to draw a small preview of the grid.
+type boardSummary struct {
+	ID    string        `json:"id"`
+	Name  string        `json:"name"`
+	Cols  int           `json:"cols"`
+	Rows  int           `json:"rows"`
+	Tiles []tilePreview `json:"tiles"`
+}
+
+type tilePreview struct {
+	X     int         `json:"x"`
+	Y     int         `json:"y"`
+	Color string      `json:"color,omitempty"`
+	Icon  *store.Icon `json:"icon,omitempty"`
+}
+
+func (s *Server) getBoards(w http.ResponseWriter, r *http.Request) {
+	cfg := s.d.Store.Get()
+	out := make([]boardSummary, 0, len(cfg.Boards))
+	for _, b := range cfg.Boards {
+		sum := boardSummary{ID: b.ID, Name: b.Name, Cols: b.Cols, Rows: b.Rows, Tiles: []tilePreview{}}
+		for _, t := range b.Tiles {
+			if t.X < b.Cols && t.Y < b.Rows { // tiles outside the grid are hidden everywhere
+				sum.Tiles = append(sum.Tiles, tilePreview{X: t.X, Y: t.Y, Color: t.Color, Icon: t.Icon})
+			}
+		}
+		out = append(out, sum)
+	}
+	writeJSON(w, 200, out)
 }
 
 // trigger triggers a tile; ok=false for an unknown tile.
@@ -388,21 +430,20 @@ func (s *Server) putAudio(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, cfg.Audio)
 }
 
-func (s *Server) putBoard(w http.ResponseWriter, r *http.Request) {
-	var b store.Board
-	if !readJSON(w, r, &b) {
+// putBoards replaces the complete list of boards (order = order in the overview and the admin tabs).
+// Boards without an ID get one derived from their name.
+func (s *Server) putBoards(w http.ResponseWriter, r *http.Request) {
+	var boards []store.Board
+	if !readJSON(w, r, &boards) {
 		return
 	}
-	if b.Tiles == nil {
-		b.Tiles = []store.Tile{}
-	}
-	cfg, err := s.d.Store.Update(func(c *store.Config) error { c.Board = b; return nil })
+	cfg, err := s.d.Store.Update(func(c *store.Config) error { c.Boards = boards; return nil })
 	if err != nil {
 		httpErr(w, 400, err.Error())
 		return
 	}
 	s.hub.broadcast(map[string]string{"type": "board"})
-	writeJSON(w, 200, cfg.Board)
+	writeJSON(w, 200, cfg.Boards)
 }
 
 func (s *Server) putServer(w http.ResponseWriter, r *http.Request) {

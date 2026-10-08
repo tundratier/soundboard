@@ -119,7 +119,7 @@ func main() {
 		go func() { time.Sleep(500 * time.Millisecond); openBrowser(adminURL) }()
 	}
 
-	boardURL := fmt.Sprintf("http://localhost:%d/", st.Get().Server.Port)
+	boardURL := fmt.Sprintf("http://localhost:%d/boards", st.Get().Server.Port)
 	runTray(adminURL, boardURL, shutdown) // blocks until "Quit"
 	log.Printf("beendet")
 }
@@ -164,7 +164,7 @@ func seedFirstRun(lib *library.Library, st *store.Store) {
 		return
 	}
 	_, err := st.Update(func(c *store.Config) error {
-		c.Board.Tiles = append(c.Board.Tiles, store.Tile{
+		c.Boards[0].Tiles = append(c.Boards[0].Tiles, store.Tile{
 			ID: store.NewID(), X: 0, Y: 0, Label: "Testton", Sound: name,
 			Icon: &store.Icon{Kind: "emoji", Value: "🔔"}, Gain: 1, Mode: audio.ModeOneShot, Color: "#4dabf7",
 		})

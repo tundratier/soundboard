@@ -48,7 +48,7 @@ Der Entwicklungsrechner hat weder `VB-Cable` noch ein Headset; ich konnte nur de
 ## 3. Nicht umgesetzt (Phase 6 / optional)
 
 Globale Hotkeys · Autostart mit Windows · Mikrofon-Ducking während Effekten · Fades pro Kachel ·
-mehrere Boards · Import/Export · natives Fenster (Wails) · PWA-Service-Worker (nur Manifest, Installation als
+Board duplizieren · Import/Export · natives Fenster (Wails) · PWA-Service-Worker (nur Manifest, Installation als
 „App“ geht, Offline-Betrieb nicht) · Mikrofon-Mithören im Monitor (du wolltest nur Effekte auf den Kopfhörern).
 
 ## 4. Fragen an dich
@@ -61,3 +61,17 @@ mehrere Boards · Import/Export · natives Fenster (Wails) · PWA-Service-Worker
 3. **Name** der App – aktuell einfach „Soundboard“ (exe, Tray, Titel).
 4. **Optionaler PIN** für das Board, falls du es doch mal in fremden Netzen nutzt?
 5. Sollen Kacheln später **Hotkeys** bekommen (z. B. F13–F24 für ein Stream-Deck-artiges Setup)?
+
+## 5. Mehrere Boards (Entscheidungen)
+
+- **Pfade:** `/boards` ist die Übersicht, `/boards/<pfad>` ein Board. `/` leitet auf `/boards` um (frühere Lesezeichen auf `/`
+  landen also in der Übersicht). Die alte API `GET /api/board` gibt es nicht mehr.
+- **Pfad = Board-ID:** wird beim Anlegen aus dem Namen erzeugt (`Zum Lachen` → `zum-lachen`), bleibt beim Umbenennen
+  stabil und ist separat änderbar (a–z, 0–9, `-`, max. 40 Zeichen). Wer einen Pfad ändert, macht bestehende Lesezeichen/QR-Codes ungültig.
+- **Kachel-IDs sind global eindeutig** (Auslösen und „spielt gerade“ laufen nur über die Kachel-ID); gleiche Rasterpositionen
+  auf verschiedenen Boards sind selbstverständlich erlaubt.
+- **Übersicht:** auch bei nur einem Board eine Übersicht (kein Auto-Weiterleiten) – wer direkt starten will, legt `/boards/<pfad>`
+  als Lesezeichen an.
+- **Migration:** eine `config.json` mit einem einzelnen Board wird beim Start in das neue Format überführt, das Original bleibt als
+  `config.json.v1.bak` liegen. Es gibt höchstens 50 Boards, mindestens eins.
+- Ein Board zu löschen entfernt seine Kacheln, nicht die Sounds. Ein offenes Board auf einem Handy zeigt danach „Dieses Board gibt es nicht (mehr)“.

@@ -29,6 +29,7 @@ export interface Tile {
 }
 
 export interface Board {
+  id: string // URL path segment: the board is served at /boards/<id>
   name: string
   cols: number
   rows: number
@@ -54,7 +55,7 @@ export interface Config {
   version: number
   audio: AudioSettings
   server: ServerSettings
-  board: Board
+  boards: Board[]
 }
 
 export interface DeviceInfo {
@@ -112,7 +113,16 @@ export interface AdminState {
 export interface BoardResponse {
   board: Board
   playing: string[]
-  missing: string[]
+  missing: string[] // tile IDs whose sound is missing or broken
+}
+
+/** One entry of the board overview: just enough to draw a small preview of the grid. */
+export interface BoardSummary {
+  id: string
+  name: string
+  cols: number
+  rows: number
+  tiles: { x: number; y: number; color?: string; icon?: TileIcon }[]
 }
 
 export type ServerEvent =

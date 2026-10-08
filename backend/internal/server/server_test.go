@@ -75,7 +75,7 @@ func newEnv(t *testing.T) *env {
 	lib.Scan()
 	st, _, _ := store.Open(filepath.Join(dir, "config.json"))
 	st.Update(func(c *store.Config) error {
-		c.Board.Tiles = []store.Tile{{ID: "t1", X: 0, Y: 0, Sound: "ton.wav", Gain: 1, Mode: audio.ModeOneShot}, {ID: "t2", X: 1, Y: 0, Sound: "weg.wav", Gain: 1}}
+		c.Boards[0].Tiles = []store.Tile{{ID: "t1", X: 0, Y: 0, Sound: "ton.wav", Gain: 1, Mode: audio.ModeOneShot}, {ID: "t2", X: 1, Y: 0, Sound: "weg.wav", Gain: 1}}
 		return nil
 	})
 	fb := &fakeBackend{}
@@ -115,7 +115,7 @@ func TestAdminGuard(t *testing.T) {
 		t.Errorf("fremder Host: %d", w.Code)
 	}
 	// CSRF: mutating request without header
-	if w := e.adminReq("PUT", "/api/admin/board", strings.NewReader("{}"), func(r *http.Request) { r.Header.Del("X-Soundboard") }); w.Code != 403 {
+	if w := e.adminReq("PUT", "/api/admin/boards", strings.NewReader("[]"), func(r *http.Request) { r.Header.Del("X-Soundboard") }); w.Code != 403 {
 		t.Errorf("ohne Header: %d", w.Code)
 	}
 	if w := e.adminReq("GET", "/admin", nil, func(r *http.Request) { r.RemoteAddr = "10.0.0.2:1" }); w.Code != 403 {
@@ -125,7 +125,7 @@ func TestAdminGuard(t *testing.T) {
 		t.Errorf("/admin lokal: %d", w.Code)
 	}
 	// Board is open
-	resp, err := http.Get(e.srv.URL + "/api/board")
+	resp, err := http.Get(e.srv.URL + "/api/boards/main")
 	if err != nil || resp.StatusCode != 200 {
 		t.Fatal(err, resp)
 	}
@@ -141,7 +141,7 @@ func TestAdminGuard(t *testing.T) {
 
 func TestBoardTriggerAndMissing(t *testing.T) {
 	e := newEnv(t)
-	resp, _ := http.Get(e.srv.URL + "/api/board")
+	resp, _ := http.Get(e.srv.URL + "/api/boards/main")
 	var br boardResp
 	json.NewDecoder(resp.Body).Decode(&br)
 	if len(br.Board.Tiles) != 2 || len(br.Missing) != 1 || br.Missing[0] != "t2" {
@@ -223,13 +223,17 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 		t.Fatal("Upload nicht geladen")
 	}
 
-	// Save board: invalid → 400, valid → 200
-	w = e.adminReq("PUT", "/api/admin/board", strings.NewReader(`{"name":"X","cols":0,"rows":2,"tiles":[]}`))
+	// Save boards: invalid → 400, valid → 200
+	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[{"name":"X","cols":0,"rows":2,"tiles":[]}]`))
 	if w.Code != 400 {
 		t.Fatalf("ungültiges Raster: %d", w.Code)
 	}
-	w = e.adminReq("PUT", "/api/admin/board", strings.NewReader(`{"name":"X","cols":5,"rows":2,"tiles":[{"x":0,"y":0,"sound":"ton.wav","pan":-1,"gain":1,"mode":"toggle"}]}`))
-	if w.Code != 200 || e.st.Get().Board.Cols != 5 || e.st.Get().Board.Tiles[0].ID == "" {
+	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[]`))
+	if w.Code != 400 {
+		t.Fatalf("leere Board-Liste: %d", w.Code)
+	}
+	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[{"name":"X","cols":5,"rows":2,"tiles":[{"x":0,"y":0,"sound":"ton.wav","pan":-1,"gain":1,"mode":"toggle"}]}]`))
+	if b := e.st.Get().Boards[0]; w.Code != 200 || b.Cols != 5 || b.ID != "x" || b.Tiles[0].ID == "" {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
 
@@ -287,5 +291,64 @@ func TestIconUploadAndServe(t *testing.T) {
 	resp, _ = http.Get(e.srv.URL + "/icons/..%2Fconfig.json")
 	if resp.StatusCode == 200 {
 		t.Fatal("Traversal")
+	}
+}
+
+func TestMultipleBoardsRoutes(t *testing.T) {
+	e := newEnv(t)
+	// a second board with its own tile; tile positions may repeat across boards
+	w := e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[
+		{"id":"main","name":"Soundboard","cols":4,"rows":3,"tiles":[{"id":"t1","x":0,"y":0,"sound":"ton.wav","gain":1,"mode":"oneshot"}]},
+		{"name":"Zum Lachen","cols":2,"rows":2,"tiles":[{"id":"l1","x":0,"y":0,"sound":"ton.wav","gain":1,"color":"#ff0000","icon":{"kind":"emoji","value":"😂"}},{"id":"far","x":5,"y":5,"sound":"ton.wav","gain":1}]}
+	]`))
+	if w.Code != 200 {
+		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+
+	// overview: public, in order, with previews (tile outside the grid is left out)
+	resp, err := http.Get(e.srv.URL + "/api/boards")
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatal(err, resp)
+	}
+	var sums []boardSummary
+	json.NewDecoder(resp.Body).Decode(&sums)
+	if len(sums) != 2 || sums[0].ID != "main" || sums[1].ID != "zum-lachen" || sums[1].Name != "Zum Lachen" {
+		t.Fatalf("%+v", sums)
+	}
+	if p := sums[1].Tiles; len(p) != 1 || p[0].Color != "#ff0000" || p[0].Icon == nil || p[0].Icon.Value != "😂" {
+		t.Fatalf("preview: %+v", p)
+	}
+
+	// single board by ID
+	resp, _ = http.Get(e.srv.URL + "/api/boards/zum-lachen")
+	var br boardResp
+	json.NewDecoder(resp.Body).Decode(&br)
+	if resp.StatusCode != 200 || br.Board.Cols != 2 || len(br.Board.Tiles) != 2 {
+		t.Fatalf("%d %+v", resp.StatusCode, br)
+	}
+	if resp, _ = http.Get(e.srv.URL + "/api/boards/gibt-es-nicht"); resp.StatusCode != 404 {
+		t.Fatalf("unknown board: %d", resp.StatusCode)
+	}
+
+	// tiles of any board can be triggered by their (global) ID
+	if resp, _ = http.Post(e.srv.URL+"/api/trigger/l1", "", nil); resp.StatusCode != 204 {
+		t.Fatalf("trigger on board 2: %d", resp.StatusCode)
+	}
+
+	// pages: root redirects to the overview, board paths serve the app, assets stay reachable
+	noRedirect := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, _ = noRedirect.Get(e.srv.URL + "/")
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/boards" {
+		t.Fatalf("root: %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	for _, p := range []string{"/boards", "/boards/", "/boards/zum-lachen", "/boards/gibt-es-nicht"} {
+		resp, _ = http.Get(e.srv.URL + p)
+		b, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 200 || !strings.Contains(string(b), "app") {
+			t.Errorf("%s: %d %s", p, resp.StatusCode, b)
+		}
+	}
+	if resp, _ = http.Get(e.srv.URL + "/assets/a.js"); resp.StatusCode != 200 {
+		t.Errorf("asset: %d", resp.StatusCode)
 	}
 }

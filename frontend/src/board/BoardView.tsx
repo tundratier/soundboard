@@ -1,28 +1,36 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Maximize, Minimize, Repeat, Square, Sun, SunDim, TriangleAlert } from 'lucide-react'
-import { api } from '../shared/api'
+import { LayoutGrid, Maximize, Minimize, Repeat, Square, TriangleAlert } from 'lucide-react'
+import { ApiError, api } from '../shared/api'
+import { KeepAwakeButton } from '../shared/KeepAwakeButton'
 import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
 import type { BoardResponse, Tile } from '../shared/types'
 import { useBoardSocket } from '../shared/useBoardSocket'
-import { useKeepAwake } from '../shared/useKeepAwake'
 
-export function BoardView() {
+export function BoardView({ boardId }: { boardId: string }) {
   const [data, setData] = useState<BoardResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
   const [fullscreen, setFullscreen] = useState(!!document.fullscreenElement)
 
   const refetch = useCallback(() => {
     api
-      .board()
+      .board(boardId)
       .then((d) => {
         setData(d)
+        setNotFound(false)
         setError(null)
       })
-      .catch((e) => setError(String(e.message ?? e)))
-  }, [])
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) {
+          setNotFound(true) // board was deleted or the path is wrong
+          setData(null)
+        } else {
+          setError(String(e.message ?? e))
+        }
+      })
+  }, [boardId])
 
   const { connected, playing, send } = useBoardSocket(refetch)
-  const keepAwake = useKeepAwake()
 
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement)
@@ -46,6 +54,18 @@ export function BoardView() {
     else document.documentElement.requestFullscreen?.().catch(() => {})
   }
 
+  if (notFound) {
+    return (
+      <div className="center-msg">
+        <div style={{ textAlign: 'center' }}>
+          <p>Dieses Board gibt es nicht (mehr).</p>
+          <a className="btn" href="/boards">
+            <LayoutGrid size={16} /> Zur Übersicht
+          </a>
+        </div>
+      </div>
+    )
+  }
   if (!data) {
     return <div className="center-msg">{error ? `Keine Verbindung: ${error}` : 'Lade …'}</div>
   }
@@ -70,25 +90,16 @@ export function BoardView() {
   return (
     <div className="board-page">
       <header className="board-head">
+        <a className="btn icon" href="/boards" title="Alle Boards">
+          <LayoutGrid size={18} />
+        </a>
         <h1>{board.name}</h1>
         <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt – verbinde neu …'} />
         <div className="grow" />
         <button className="btn danger" onPointerDown={stopAll} title="Alle Sounds stoppen">
           <Square size={16} /> Stopp
         </button>
-        <button
-          className={`btn icon${keepAwake.active ? ' active' : ''}`}
-          onClick={keepAwake.toggle}
-          title={
-            !keepAwake.wanted
-              ? 'Display darf ausgehen – antippen, um es wach zu halten'
-              : keepAwake.active
-                ? 'Display bleibt an – antippen zum Ausschalten'
-                : 'Display wird beim nächsten Antippen wach gehalten'
-          }
-        >
-          {keepAwake.wanted ? <Sun size={18} /> : <SunDim size={18} />}
-        </button>
+        <KeepAwakeButton />
         {document.fullscreenEnabled && (
           <button className="btn icon" onClick={toggleFullscreen} title="Vollbild">
             {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}

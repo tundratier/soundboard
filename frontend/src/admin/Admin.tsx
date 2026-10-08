@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, Globe, Headphones, Monitor, Mic, Square, TriangleAlert } from 'lucide-react'
+import { ExternalLink, Globe, Headphones, Monitor, Mic, Plus, Square, TriangleAlert } from 'lucide-react'
 import { api } from '../shared/api'
+import { slugify, uniqueSlug } from '../shared/slug'
 import type { AdminState, AudioSettings, Board, DeviceInfo, EngineStatus, RoleStatus, ServerSettings } from '../shared/types'
 import { BoardEditor } from './BoardEditor'
 import { Meter } from './Meter'
@@ -17,7 +18,8 @@ export function Admin() {
 
   // Local drafts: taken from the server state only on the first load, then saved automatically.
   const [audio, setAudio] = useState<AudioSettings | null>(null)
-  const [board, setBoard] = useState<Board | null>(null)
+  const [boards, setBoards] = useState<Board[] | null>(null)
+  const [active, setActive] = useState(0) // index of the selected board tab
   const [server, setServer] = useState<ServerSettings | null>(null)
 
   const toastTimer = useRef<number>(undefined)
@@ -33,7 +35,7 @@ export function Admin() {
       setState(s)
       setLoadError(null)
       setAudio((a) => a ?? s.config.audio)
-      setBoard((b) => b ?? s.config.board)
+      setBoards((b) => b ?? s.config.boards)
       setServer((v) => v ?? s.config.server)
     } catch (e) {
       setLoadError((e as Error).message)
@@ -68,18 +70,43 @@ export function Admin() {
   }, [])
 
   useEffect(() => {
-    if (board) document.title = `Verwaltung – ${board.name}`
-  }, [board])
+    document.title = 'Verwaltung – Soundboard'
+  }, [])
 
   useDebouncedSave(audio, (a) => api.putAudio(a).catch((e) => notify(`Audio-Einstellungen: ${e.message}`, true)), 400)
-  useDebouncedSave(board, (b) => api.putBoard(b).catch((e) => notify(`Board nicht gespeichert: ${e.message}`, true)), 500)
+  useDebouncedSave(boards, (b) => api.putBoards(b).catch((e) => notify(`Boards nicht gespeichert: ${e.message}`, true)), 500)
 
-  const usedSounds = useMemo(() => new Set((board?.tiles ?? []).map((t) => t.sound)), [board])
+  const usedSounds = useMemo(() => new Set((boards ?? []).flatMap((b) => b.tiles.map((t) => t.sound))), [boards])
 
-  if (!state || !audio || !board || !server) {
+  if (!state || !audio || !boards || !server) {
     return <div className="center-msg">{loadError ? `Backend nicht erreichbar: ${loadError}` : 'Lade …'}</div>
   }
   const live = status ?? state.status
+  const current = boards[Math.min(active, boards.length - 1)]
+  const currentIdx = boards.indexOf(current)
+
+  const setCurrent = (b: Board) => setBoards(boards.map((x, i) => (i === currentIdx ? b : x)))
+  const addBoard = () => {
+    const name = `Board ${boards.length + 1}`
+    const id = uniqueSlug(slugify(name), new Set(boards.map((b) => b.id)))
+    setBoards([...boards, { id, name, cols: 4, rows: 3, tiles: [] }])
+    setActive(boards.length)
+  }
+  const deleteBoard = () => {
+    if (boards.length < 2) return
+    const n = current.tiles.length
+    if (!confirm(`Board „${current.name}“ mit ${n} ${n === 1 ? 'Kachel' : 'Kacheln'} löschen?\n\nDie Sounds selbst bleiben erhalten.`)) return
+    setBoards(boards.filter((_, i) => i !== currentIdx))
+    setActive(Math.max(0, currentIdx - 1))
+  }
+  const moveBoard = (dir: -1 | 1) => {
+    const to = currentIdx + dir
+    if (to < 0 || to >= boards.length) return
+    const next = [...boards]
+    ;[next[currentIdx], next[to]] = [next[to], next[currentIdx]]
+    setBoards(next)
+    setActive(to)
+  }
 
   return (
     <div className="admin">
@@ -87,8 +114,8 @@ export function Admin() {
         <h1>Soundboard – Verwaltung</h1>
         <span className="note">v{state.version}</span>
         <div className="grow" />
-        <a className="btn" href="/" target="_blank" rel="noreferrer">
-          <ExternalLink size={14} /> Board öffnen
+        <a className="btn" href="/boards" target="_blank" rel="noreferrer">
+          <ExternalLink size={14} /> Boards öffnen
         </a>
         <button className="btn danger" onClick={() => api.stopAll()}>
           <Square size={14} /> Alle Sounds stoppen
@@ -102,7 +129,32 @@ export function Admin() {
           <NetworkPanel state={state} server={server} setServer={setServer} notify={notify} />
         </div>
         <div className="stack">
-          <BoardEditor board={board} setBoard={setBoard} sounds={state.sounds} icons={state.icons} onIconsChanged={load} notify={notify} />
+          <div>
+            <div className="tabs" role="tablist">
+              {boards.map((b, i) => (
+                <button key={b.id} role="tab" aria-selected={i === currentIdx} className={`tab${i === currentIdx ? ' active' : ''}`} onClick={() => setActive(i)} title={b.name}>
+                  {b.name}
+                </button>
+              ))}
+              <button className="btn small" onClick={addBoard} title="Neues Board">
+                <Plus size={14} /> Board
+              </button>
+            </div>
+            <BoardEditor
+              key={currentIdx}
+              board={current}
+              setBoard={setCurrent}
+              otherIds={boards.filter((b) => b !== current).map((b) => b.id)}
+              canMoveLeft={currentIdx > 0}
+              canMoveRight={currentIdx < boards.length - 1}
+              onMove={moveBoard}
+              onDelete={boards.length > 1 ? deleteBoard : undefined}
+              sounds={state.sounds}
+              icons={state.icons}
+              onIconsChanged={load}
+              notify={notify}
+            />
+          </div>
           <SoundsPanel sounds={state.sounds} usedSounds={usedSounds} onChanged={load} notify={notify} />
           <div className="note">
             Daten: <code>{state.dataDir}</code>
