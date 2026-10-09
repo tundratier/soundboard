@@ -20,7 +20,8 @@ import (
 	"soundboard/web"
 )
 
-var version = "0.1.0"
+// version is set at build time (-ldflags "-X main.version=..."), derived from git tags by scripts/version.ps1.
+var version = "dev"
 
 func main() {
 	dataFlag := flag.String("data", "", "data folder (default: ./data next to the exe if it exists, otherwise %APPDATA%\\Soundboard)")
