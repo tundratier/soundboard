@@ -152,5 +152,18 @@ function New-ChangelogSection {
     }
     $lines += ''
   }
+  # a release without feat/fix/perf/breaking commits (forced with -Version): list the internal changes instead
+  if ($lines.Count -eq 2) {
+    $other = @($Commits | Where-Object { $_.Type -and -not ($_.Type -eq 'chore' -and $_.Scope -eq 'release') })
+    $lines += '### Other changes'
+    $lines += ''
+    $lines += 'No user-visible changes.'
+    $lines += ''
+    foreach ($c in $other) {
+      $scope = if ($c.Scope) { "**$($c.Scope):** " } else { '' }
+      $lines += "- $($c.Type): $scope$($c.Description) ($($c.Short))"
+    }
+    $lines += ''
+  }
   return ($lines -join "`n")
 }

@@ -43,7 +43,7 @@ microphone and playback paths running, trigger → level at the monitor, web boa
 | Frontend libraries | React, lucide-react (UI icons), nosleep.js (keep the screen on), nothing else. HTML5 drag & drop instead of dnd-kit, plain `fetch` instead of TanStack Query | Few dependencies, enough for this size. HTML5 drag & drop does not work by touch in the admin UI (the admin UI is meant for the desktop; creating a tile also works by click). |
 | API types | Mirrored by hand (`frontend/src/shared/types.ts`), no `tygo` | A generator is not worth it at this size. |
 | Auto-save | Audio settings and boards are saved 0.4-0.5 s after the last change | No "save" button; errors appear as a toast at the bottom. |
-| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English (the very first commit message is the one German exception) | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
+| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
 
 ## 3. Not implemented (phase 6 / optional)
 
@@ -78,3 +78,17 @@ headphones).
   `config.json.v1.bak`. There are at most 50 boards, at least one.
 - Deleting a board removes its tiles, not the sounds. A board that is open on a phone then shows "Dieses Board gibt es
   nicht (mehr)" (this board no longer exists).
+
+## 6. CI release pipeline (Bitbucket)
+
+- **Not run on Bitbucket yet.** `build/ci-release.sh` was tested locally (tag detection, packaging, release notes,
+  upload against a mock of the downloads endpoint, error cases) and the YAML was parsed, but the pipeline itself, the
+  mingw cross-compile on the Bitbucket runner and the real downloads API call still need a first run. The setup
+  steps (enable Pipelines, repository access token, `BB_ACCESS_TOKEN` variable) are in CONTRIBUTING.md.
+- **"Release" = tag + Downloads.** Bitbucket has no release objects. The pipeline publishes the zip, a checksum and
+  the release notes as repository downloads; the tag `vX.Y.Z` is the release marker.
+- **Trigger:** every push to `master`, but it only publishes when `HEAD` carries a release tag. Pushing `master` without
+  the tag (for example a history rewrite) does nothing. Tags are pushed with `--follow-tags`.
+- **The pipeline only exists on `master` after the next release.** `ci`/`build`/`docs` commits do not release on their own,
+  so to bring it onto `master` right away use `scripts\release.ps1 -Version 0.1.1`.
+- Not covered: tests or a typecheck on `develop`/pull requests (easy to add as another pipeline), signing the exe.

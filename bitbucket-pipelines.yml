@@ -1,0 +1,37 @@
+# Bitbucket Pipelines: on every push to master, build the Windows exe and publish it as a repository download.
+# master only receives git-flow releases, so a push there is a release; the tag vX.Y.Z at HEAD names it
+# (see build/ci-release.sh, which does nothing if HEAD is not tagged). Setup: CONTRIBUTING.md, "CI release".
+
+definitions:
+  caches:
+    gomod: /go/pkg/mod
+
+pipelines:
+  branches:
+    master:
+      - step:
+          name: Build frontend
+          image: node:22-bookworm
+          caches:
+            - node
+          script:
+            - cd frontend
+            - npm ci --no-audit --no-fund
+            - npm run build
+          artifacts:
+            - backend/web/dist/**
+      - step:
+          name: Build exe and publish release
+          image: golang:1.27-bookworm
+          clone:
+            depth: full
+          caches:
+            - gomod
+          script:
+            - apt-get update -qq
+            - apt-get install -y -qq --no-install-recommends gcc-mingw-w64-x86-64 zip
+            - bash build/ci-release.sh
+          artifacts:
+            - dist/*.zip
+            - dist/*.sha256
+            - dist/*-release-notes.md
