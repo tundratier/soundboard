@@ -3,6 +3,15 @@
 All notable changes to this project are documented in this file. It is generated from the
 Conventional Commits by scripts/release.ps1; versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.2] - 2026-10-09
+
+### Other changes
+
+No user-visible changes.
+
+- docs: describe the GitHub Actions release setup (01f96b3)
+- ci: replace the Bitbucket pipeline with a GitHub Actions workflow (58ce027)
+
 ## [0.1.1] - 2026-10-09
 
 ### Other changes
