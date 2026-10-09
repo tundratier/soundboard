@@ -99,4 +99,10 @@ The boards are deliberately not password-protected. The admin UI is only reachab
 `Host` header check against DNS rebinding, a custom header against CSRF from foreign web pages). On first start the
 Windows firewall asks for permission - allow "private networks".
 
+## License
+
+[MIT](LICENSE). The libraries used keep their own licenses (all permissive: malgo/miniaudio, beep, fsnotify,
+coder/websocket, systray, go-ole, go-qrcode, React, lucide-react, nosleep.js). The VB-Audio Virtual Cable is a separate
+product with its own license and is not part of this repository.
+
 Open points and decisions taken: [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Original plan: [PLAN.md](PLAN.md).
