@@ -132,8 +132,8 @@ soundboard/
 > **Status (as of 2026-10-09):** Phases 0-5 are implemented, see [README.md](README.md). Added later: multiple boards
 > (`/boards`, tabs in the admin UI), keeping the phone screen awake and the release automation (Conventional Commits,
 > git-flow, versions derived from tags, a GitHub Actions workflow that publishes a release for every tag on `master`, see
-> [CONTRIBUTING.md](CONTRIBUTING.md)); the project is MIT licensed. What stayed untested (listening/latency with a
-> real virtual cable, soak test, setting the default device) and the decisions I took are in
+> [CONTRIBUTING.md](CONTRIBUTING.md)), a German/English UI (see README) and an MIT license. What stayed untested
+> (listening/latency with a real virtual cable, soak test, setting the default device) and the decisions I took are in
 > [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Deviations from the plan: true balance instead of constant-power panning, no
 > tygo/dnd-kit/TanStack Query, the microphone buffer's target fill level is 2 periods.
 

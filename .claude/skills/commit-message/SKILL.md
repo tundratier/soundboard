@@ -49,8 +49,8 @@ version. A `commit-msg` hook (`.githooks/commit-msg`) rejects malformed messages
 
 ## Language and style
 
-English only, even though the user talks German. Use a plain `-`, not the en dash (U+2013). UI texts are German
-but commit messages never are.
+English only, even though the user talks German. Use a plain `-`, not the en dash (U+2013). The UI is localized
+(German/English) but commit messages are always English.
 
 ## Examples
 

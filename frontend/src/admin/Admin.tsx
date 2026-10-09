@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ExternalLink, Globe, Headphones, Monitor, Mic, Plus, Square, TriangleAlert } from 'lucide-react'
+import { getLanguage, t, tp } from '../i18n'
 import { api } from '../shared/api'
 import { slugify, uniqueSlug } from '../shared/slug'
 import type { AdminState, AudioSettings, Board, DeviceInfo, EngineStatus, RoleStatus, ServerSettings } from '../shared/types'
@@ -32,6 +33,10 @@ export function Admin() {
   const load = useCallback(async () => {
     try {
       const s = await api.state()
+      if (s.language !== getLanguage()) {
+        location.reload() // the language was changed in the tray menu; drafts are auto-saved, so nothing is lost
+        return
+      }
       setState(s)
       setLoadError(null)
       setAudio((a) => a ?? s.config.audio)
@@ -44,8 +49,8 @@ export function Admin() {
 
   useEffect(() => {
     load()
-    const t = window.setInterval(load, 2500) // keep device list, sounds and cable detection up to date
-    return () => window.clearInterval(t)
+    const timer = window.setInterval(load, 2500) // keep device list, sounds and cable detection up to date
+    return () => window.clearInterval(timer)
   }, [load])
 
   useEffect(() => {
@@ -70,16 +75,16 @@ export function Admin() {
   }, [])
 
   useEffect(() => {
-    document.title = 'Verwaltung - Soundboard'
+    document.title = t('admin.documentTitle')
   }, [])
 
-  useDebouncedSave(audio, (a) => api.putAudio(a).catch((e) => notify(`Audio-Einstellungen: ${e.message}`, true)), 400)
-  useDebouncedSave(boards, (b) => api.putBoards(b).catch((e) => notify(`Boards nicht gespeichert: ${e.message}`, true)), 500)
+  useDebouncedSave(audio, (a) => api.putAudio(a).catch((e) => notify(t('admin.audioSaveFailed', { error: e.message }), true)), 400)
+  useDebouncedSave(boards, (b) => api.putBoards(b).catch((e) => notify(t('admin.boardsSaveFailed', { error: e.message }), true)), 500)
 
-  const usedSounds = useMemo(() => new Set((boards ?? []).flatMap((b) => b.tiles.map((t) => t.sound))), [boards])
+  const usedSounds = useMemo(() => new Set((boards ?? []).flatMap((b) => b.tiles.map((tile) => tile.sound))), [boards])
 
   if (!state || !audio || !boards || !server) {
-    return <div className="center-msg">{loadError ? `Backend nicht erreichbar: ${loadError}` : 'Lade …'}</div>
+    return <div className="center-msg">{loadError ? t('admin.backendUnreachable', { error: loadError }) : t('common.loading')}</div>
   }
   const live = status ?? state.status
   const current = boards[Math.min(active, boards.length - 1)]
@@ -87,15 +92,14 @@ export function Admin() {
 
   const setCurrent = (b: Board) => setBoards(boards.map((x, i) => (i === currentIdx ? b : x)))
   const addBoard = () => {
-    const name = `Board ${boards.length + 1}`
+    const name = t('admin.newBoardName', { n: boards.length + 1 })
     const id = uniqueSlug(slugify(name), new Set(boards.map((b) => b.id)))
     setBoards([...boards, { id, name, cols: 4, rows: 3, tiles: [] }])
     setActive(boards.length)
   }
   const deleteBoard = () => {
     if (boards.length < 2) return
-    const n = current.tiles.length
-    if (!confirm(`Board „${current.name}“ mit ${n} ${n === 1 ? 'Kachel' : 'Kacheln'} löschen?\n\nDie Sounds selbst bleiben erhalten.`)) return
+    if (!confirm(t('admin.deleteBoardConfirm', { name: current.name, tiles: tp('boards.tiles', current.tiles.length) }))) return
     setBoards(boards.filter((_, i) => i !== currentIdx))
     setActive(Math.max(0, currentIdx - 1))
   }
@@ -111,14 +115,14 @@ export function Admin() {
   return (
     <div className="admin">
       <header className="admin-head">
-        <h1>Soundboard - Verwaltung</h1>
+        <h1>{t('admin.heading')}</h1>
         <span className="note">{/^\d/.test(state.version) ? `v${state.version}` : state.version}</span>
         <div className="grow" />
         <a className="btn" href="/boards" target="_blank" rel="noreferrer">
-          <ExternalLink size={14} /> Boards öffnen
+          <ExternalLink size={14} /> {t('admin.openBoards')}
         </a>
         <button className="btn danger" onClick={() => api.stopAll()}>
-          <Square size={14} /> Alle Sounds stoppen
+          <Square size={14} /> {t('common.stopAll')}
         </button>
       </header>
 
@@ -136,8 +140,8 @@ export function Admin() {
                   {b.name}
                 </button>
               ))}
-              <button className="btn small" onClick={addBoard} title="Neues Board">
-                <Plus size={14} /> Board
+              <button className="btn small" onClick={addBoard} title={t('admin.newBoard')}>
+                <Plus size={14} /> {t('admin.boardButton')}
               </button>
             </div>
             <BoardEditor
@@ -157,7 +161,7 @@ export function Admin() {
           </div>
           <SoundsPanel sounds={state.sounds} usedSounds={usedSounds} onChanged={load} notify={notify} />
           <div className="note">
-            Daten: <code>{state.dataDir}</code>
+            {t('admin.dataFolder')} <code>{state.dataDir}</code>
           </div>
         </div>
       </div>
@@ -168,25 +172,25 @@ export function Admin() {
 
 // ---------- Audio ----------
 
-/** German UI text for the backend's status error codes; unknown codes fall back to the backend's message. */
+/** UI text for the backend's status error codes; unknown codes fall back to the backend's (English) message. */
 function roleErrorText(role: RoleStatus): string {
   switch (role.errorCode) {
     case 'device_missing':
-      return 'Gerät nicht gefunden (abgesteckt?)'
+      return t('audio.errDeviceMissing')
     case 'feedback':
-      return 'Rückkopplung: „CABLE Output“ ist das Ausgabe-Ende dieser App und kann nicht als Mikrofon dienen'
+      return t('audio.errFeedback')
     case 'device_stopped':
-      return 'Gerät gestoppt, versuche erneut zu verbinden'
+      return t('audio.errStopped')
     case 'open_failed':
-      return `Gerät konnte nicht geöffnet werden: ${role.error ?? ''}`
+      return t('audio.errOpenFailed', { error: role.error ?? '' })
     default:
-      return role.error || 'startet …'
+      return role.error || t('audio.starting')
   }
 }
 
 function RoleLine({ role, configured }: { role: RoleStatus; configured: boolean }) {
-  if (!configured) return <div className="status-line"><span className="dot" /> <span className="dim">nicht gewählt</span></div>
-  if (role.running) return <div className="status-line"><span className="dot ok" /> läuft</div>
+  if (!configured) return <div className="status-line"><span className="dot" /> <span className="dim">{t('audio.notSelected')}</span></div>
+  if (role.running) return <div className="status-line"><span className="dot ok" /> {t('audio.running')}</div>
   return (
     <div className="status-line">
       <span className="dot bad" /> <span className="note bad">{roleErrorText(role)}</span>
@@ -195,7 +199,7 @@ function RoleLine({ role, configured }: { role: RoleStatus; configured: boolean 
 }
 
 function deviceLabel(d: DeviceInfo, extra = '') {
-  return `${d.name}${d.isDefault ? ' (Standard)' : ''}${extra}`
+  return `${d.name}${d.isDefault ? t('audio.defaultSuffix') : ''}${extra}`
 }
 
 function AudioPanel({
@@ -233,49 +237,49 @@ function AudioPanel({
   return (
     <section className="card">
       <h2>
-        <Headphones size={18} /> Audio-Kanäle
+        <Headphones size={18} /> {t('audio.title')}
       </h2>
-      {devicesError && <div className="note bad">Geräteliste: {devicesError}</div>}
+      {devicesError && <div className="note bad">{t('audio.deviceList', { error: devicesError })}</div>}
 
       <div className="field">
         <label>
           <span>
-            <Mic size={13} /> Eingang - Mikrofon
+            <Mic size={13} /> {t('audio.input')}
           </span>
         </label>
         <select value={audio.inputDeviceId} onChange={(e) => set({ inputDeviceId: e.target.value })}>
-          <option value="">- kein Mikrofon -</option>
-          {missing(audio.inputDeviceId, capture) && <option value={audio.inputDeviceId}>(Gerät nicht verfügbar)</option>}
+          <option value="">{t('audio.noMic')}</option>
+          {missing(audio.inputDeviceId, capture) && <option value={audio.inputDeviceId}>{t('audio.deviceUnavailable')}</option>}
           {capture.map((d) => (
             <option key={d.id} value={d.id} disabled={d.id === cableOutId}>
-              {deviceLabel(d, d.id === cableOutId ? ' - Ausgang dieser App, nicht wählbar' : '')}
+              {deviceLabel(d, d.id === cableOutId ? t('audio.cableOutNote') : '')}
             </option>
           ))}
         </select>
         <RoleLine role={status.input} configured={audio.inputDeviceId !== ''} />
-        <Meter value={status.micPeak} label="Mikrofon-Pegel" />
+        <Meter value={status.micPeak} label={t('audio.micLevel')} />
       </div>
 
       <div className="field">
         <label>
           <span>
-            <Headphones size={13} /> Hauptausgang - Mikrofon + Effekte
+            <Headphones size={13} /> {t('audio.main')}
           </span>
         </label>
         <select value={audio.mainDeviceId} onChange={(e) => set({ mainDeviceId: e.target.value })}>
-          <option value="">- kein Ausgang -</option>
-          {missing(audio.mainDeviceId, playback) && <option value={audio.mainDeviceId}>(Gerät nicht verfügbar)</option>}
+          <option value="">{t('audio.noOutput')}</option>
+          {missing(audio.mainDeviceId, playback) && <option value={audio.mainDeviceId}>{t('audio.deviceUnavailable')}</option>}
           {playback.map((d) => (
             <option key={d.id} value={d.id}>
-              {deviceLabel(d, d.id === cableInId ? ' - empfohlen (virtuelles Kabel)' : '')}
+              {deviceLabel(d, d.id === cableInId ? t('audio.cableRecommended') : '')}
             </option>
           ))}
         </select>
         <RoleLine role={status.main} configured={audio.mainDeviceId !== ''} />
-        <Meter value={status.mainPeak} label="Pegel Hauptausgang" />
+        <Meter value={status.mainPeak} label={t('audio.mainLevel')} />
         {audio.mainDeviceId !== '' && audio.inputDeviceId !== '' && !mainIsCable && (
           <div className="note warn">
-            <TriangleAlert size={12} /> Der Hauptausgang ist kein virtuelles Kabel. Läuft er auf Lautsprechern, hörst du dein Mikrofon (Rückkopplung!). Nutze Kopfhörer oder „CABLE Input“.
+            <TriangleAlert size={12} /> {t('audio.mainNotCable')}
           </div>
         )}
       </div>
@@ -283,12 +287,12 @@ function AudioPanel({
       <div className="field">
         <label>
           <span>
-            <Monitor size={13} /> Monitor - nur Effekte (Kopfhörer)
+            <Monitor size={13} /> {t('audio.monitor')}
           </span>
         </label>
         <select value={audio.monitorDeviceId} onChange={(e) => set({ monitorDeviceId: e.target.value })}>
-          <option value="">- kein Monitor -</option>
-          {missing(audio.monitorDeviceId, playback) && <option value={audio.monitorDeviceId}>(Gerät nicht verfügbar)</option>}
+          <option value="">{t('audio.noMonitor')}</option>
+          {missing(audio.monitorDeviceId, playback) && <option value={audio.monitorDeviceId}>{t('audio.deviceUnavailable')}</option>}
           {playback.map((d) => (
             <option key={d.id} value={d.id}>
               {deviceLabel(d)}
@@ -296,38 +300,38 @@ function AudioPanel({
           ))}
         </select>
         <RoleLine role={status.monitor} configured={audio.monitorDeviceId !== ''} />
-        <Meter value={status.monitorPeak} label="Pegel Monitor" />
-        <div className="note">Die Effekte laufen zusätzlich zu dem, was Windows sonst auf diesem Gerät ausgibt - Windows mischt das selbst.</div>
+        <Meter value={status.monitorPeak} label={t('audio.monitorLevel')} />
+        <div className="note">{t('audio.monitorNote')}</div>
         {audio.monitorDeviceId !== '' && audio.monitorDeviceId === audio.mainDeviceId && (
           <div className="note warn">
-            <TriangleAlert size={12} /> Hauptausgang und Monitor sind dasselbe Gerät - die Effekte laufen doppelt.
+            <TriangleAlert size={12} /> {t('audio.sameDevice')}
           </div>
         )}
       </div>
 
       <div className="row">
-        {gain('micGain', 'Mikrofon')}
-        {gain('fxGainMain', 'Effekte (Haupt)')}
-        {gain('fxGainMonitor', 'Effekte (Monitor)')}
+        {gain('micGain', t('audio.gainMic'))}
+        {gain('fxGainMain', t('audio.gainMain'))}
+        {gain('fxGainMonitor', t('audio.gainMonitor'))}
       </div>
 
       <details>
         <summary className="note" style={{ cursor: 'pointer' }}>
-          Erweitert
+          {t('audio.advanced')}
         </summary>
         <div className="row" style={{ marginTop: 8 }}>
           <div className="field">
-            <label>Puffergröße (Latenz)</label>
+            <label>{t('audio.buffer')}</label>
             <select value={audio.periodMs} onChange={(e) => set({ periodMs: +e.target.value })}>
-              <option value={5}>5 ms (minimal, knackst evtl.)</option>
-              <option value={10}>10 ms (Standard)</option>
-              <option value={20}>20 ms</option>
-              <option value={30}>30 ms (sehr stabil)</option>
+              <option value={5}>{t('audio.buffer5')}</option>
+              <option value={10}>{t('audio.buffer10')}</option>
+              <option value={20}>{t('audio.buffer20')}</option>
+              <option value={30}>{t('audio.buffer30')}</option>
             </select>
           </div>
         </div>
         <div className="note" style={{ marginTop: 6 }}>
-          Mikrofon-Pfad: Unterläufe {status.micUnderruns}, Überläufe {status.micOverruns}, Taktausgleich {((status.micRatio - 1) * 1e6).toFixed(0)} ppm
+          {t('audio.micStats', { under: status.micUnderruns, over: status.micOverruns, ppm: ((status.micRatio - 1) * 1e6).toFixed(0) })}
         </div>
       </details>
     </section>
@@ -345,50 +349,48 @@ function WindowsPanel({ state, notify }: { state: AdminState; notify: Notify }) 
   const apply = async () => {
     try {
       await api.setDefaultDevice(effective, all ? 'all' : 'communications')
-      notify(all ? 'Als Standard- und Kommunikationsgerät gesetzt.' : 'Als Standard-Kommunikationsgerät gesetzt.')
+      notify(all ? t('win.setAll') : t('win.setCommunications'))
     } catch (e) {
-      notify(`Konnte Gerät nicht setzen: ${(e as Error).message}`, true)
+      notify(t('win.setFailed', { error: (e as Error).message }), true)
     }
   }
 
   return (
     <section className="card">
       <h2>
-        <Mic size={18} /> Windows-Integration
+        <Mic size={18} /> {t('win.title')}
       </h2>
       {state.cable.found ? (
         <div className="status-line">
-          <span className="dot ok" /> Virtuelles Kabel „VB-Audio Cable“ gefunden
+          <span className="dot ok" /> {t('win.cableFound')}
         </div>
       ) : (
         <div className="note warn">
-          <TriangleAlert size={12} /> Kein virtuelles Kabel gefunden. Damit Discord, Teams & Co. das gemischte Signal als Mikrofon bekommen, installiere einmalig{' '}
+          <TriangleAlert size={12} /> {t('win.cableMissingBefore')}
           <a href="https://vb-audio.com/Cable/" target="_blank" rel="noreferrer">
             VB-Audio Virtual Cable
-          </a>{' '}
-          (kostenlos, Neustart nötig). Danach „CABLE Input“ als Hauptausgang wählen.
+          </a>
+          {t('win.cableMissingAfter')}
         </div>
       )}
       <div className="field">
-        <label>Aufnahmegerät, das Windows als Standard nutzen soll</label>
+        <label>{t('win.recordingDevice')}</label>
         <select value={effective} onChange={(e) => setTarget(e.target.value)}>
           <option value="">-</option>
           {capture.map((d) => (
             <option key={d.id} value={d.id}>
-              {deviceLabel(d, d.id === state.cable.outputId ? ' - Ausgang dieser App' : '')}
+              {deviceLabel(d, d.id === state.cable.outputId ? t('win.appOutputSuffix') : '')}
             </option>
           ))}
         </select>
       </div>
       <label className="row note" style={{ cursor: 'pointer' }}>
-        <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> zusätzlich als Standard-Aufnahmegerät (nicht nur Kommunikation)
+        <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /> {t('win.alsoDefault')}
       </label>
       <button className="btn primary" disabled={!effective} onClick={apply} style={{ alignSelf: 'flex-start' }}>
-        Als Standard-Kommunikationsgerät setzen
+        {t('win.setButton')}
       </button>
-      <div className="note">
-        Hinweis: Wenn Windows andere Töne leiser stellt, sobald ein Kommunikationsgerät aktiv ist: Systemsteuerung → Sound → Kommunikation → „Nichts unternehmen“.
-      </div>
+      <div className="note">{t('win.duckingHint')}</div>
     </section>
   )
 }
@@ -414,7 +416,7 @@ function NetworkPanel({
   const save = async () => {
     try {
       await api.putServer(server)
-      notify('Gespeichert. Beende die App über das Tray-Symbol und starte sie neu, damit die Änderung wirkt.')
+      notify(t('net.saved'))
     } catch (e) {
       notify((e as Error).message, true)
     }
@@ -423,39 +425,39 @@ function NetworkPanel({
   return (
     <section className="card">
       <h2>
-        <Globe size={18} /> Board im Netzwerk
+        <Globe size={18} /> {t('net.title')}
       </h2>
       {server.bindLan && urls.length > 0 ? (
         <div className="url-list">
-          <img src={api.qrUrl(qrUrl)} alt="QR-Code" />
+          <img src={api.qrUrl(qrUrl)} alt={t('net.qrAlt')} />
           <div>
-            <div className="note">Öffne auf Handy/Tablet im selben Netz:</div>
+            <div className="note">{t('net.openOnPhone')}</div>
             {urls.map((u, i) => (
               <code key={u} onClick={() => setQrIdx(i)} style={{ cursor: 'pointer', fontWeight: i === qrIdx ? 700 : 400 }}>
                 {u}
               </code>
             ))}
             <div className="note" style={{ marginTop: 6 }}>
-              Jeder im Netz kann Sounds auslösen (kein Passwort). Beim ersten Start fragt die Windows-Firewall - „Privates Netzwerk“ zulassen.
+              {t('net.warning')}
             </div>
           </div>
         </div>
       ) : (
-        <div className="note">Das Board ist nur auf diesem Rechner erreichbar (http://localhost:{server.port}/).</div>
+        <div className="note">{t('net.localOnly', { port: server.port })}</div>
       )}
       <div className="row">
         <div className="field" style={{ flex: 0, minWidth: 100 }}>
-          <label>Port</label>
+          <label>{t('net.port')}</label>
           <input type="number" min={1} max={65535} value={server.port} onChange={(e) => setServer({ ...server, port: +e.target.value })} />
         </div>
         <label className="row note" style={{ cursor: 'pointer', flex: 1 }}>
-          <input type="checkbox" checked={server.bindLan} onChange={(e) => setServer({ ...server, bindLan: e.target.checked })} /> Im Netzwerk erreichbar
+          <input type="checkbox" checked={server.bindLan} onChange={(e) => setServer({ ...server, bindLan: e.target.checked })} /> {t('net.lan')}
         </label>
         <button className="btn" disabled={!changed} onClick={save}>
-          Speichern
+          {t('net.save')}
         </button>
       </div>
-      {changed && <div className="note warn">Änderungen am Server wirken erst nach einem Neustart der App.</div>}
+      {changed && <div className="note warn">{t('net.restartNeeded')}</div>}
     </section>
   )
 }

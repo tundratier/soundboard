@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { Tile } from './types'
 
 export const DEFAULT_TILE_COLOR = '#3b4252'
@@ -10,6 +11,6 @@ export function TileIconView({ tile }: { tile: Pick<Tile, 'icon' | 'label' | 'so
   return <span className="tile-emoji dim">♪</span>
 }
 
-export function tileLabel(t: Pick<Tile, 'label' | 'sound'>): string {
-  return t.label || t.sound.replace(/\.[^.]+$/, '') || '(leer)'
+export function tileLabel(tile: Pick<Tile, 'label' | 'sound'>): string {
+  return tile.label || tile.sound.replace(/\.[^.]+$/, '') || t('tile.empty')
 }

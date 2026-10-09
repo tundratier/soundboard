@@ -14,6 +14,7 @@ import (
 
 	"soundboard/internal/audio"
 	"soundboard/internal/audio/miniaudio"
+	"soundboard/internal/i18n"
 	"soundboard/internal/library"
 	"soundboard/internal/server"
 	"soundboard/internal/store"
@@ -23,31 +24,58 @@ import (
 // version is set at build time (-ldflags "-X main.version=..."), derived from git tags by scripts/version.ps1.
 var version = "dev"
 
+// All user-facing texts (dialogs, tray menu, flag help, console output) come from internal/i18n, in the language
+// given by -lang, else the saved setting, else the Windows display language. The log file always stays English.
+
 func main() {
-	dataFlag := flag.String("data", "", "data folder (default: ./data next to the exe if it exists, otherwise %APPDATA%\\Soundboard)")
-	portFlag := flag.Int("port", 0, "override the port")
-	noBrowser := flag.Bool("no-browser", false, "do not open the admin page on first start")
-	showVersion := flag.Bool("version", false, "print the version")
+	// The flag help is localized, so the language must be known before the flags are defined: take -lang from the
+	// raw arguments for now and settle the final language once the saved setting is loaded.
+	i18n.Set(i18n.Resolve(langFromArgs(os.Args[1:])))
+
+	dataFlag := flag.String("data", "", i18n.T(i18n.FlagData))
+	portFlag := flag.Int("port", 0, i18n.T(i18n.FlagPort))
+	noBrowser := flag.Bool("no-browser", false, i18n.T(i18n.FlagNoBrowser))
+	showVersion := flag.Bool("version", false, i18n.T(i18n.FlagVersion))
+	langFlag := flag.String("lang", "", i18n.T(i18n.FlagLang))
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), i18n.T(i18n.FlagUsage)+"\n", os.Args[0])
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(version)
 		return
 	}
+	langOverride, langOverridden := "", *langFlag != ""
+	if langOverridden {
+		var ok bool
+		if langOverride, ok = i18n.Normalize(*langFlag); !ok {
+			fatalBox(fmt.Sprintf(i18n.T(i18n.ErrBadLang), *langFlag), "unknown language "+*langFlag)
+		}
+	}
 
 	dataDir := resolveDataDir(*dataFlag)
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		fatalBox(fmt.Sprintf(uiErrDataFolder, err), "cannot create data folder: "+err.Error())
+		fatalBox(fmt.Sprintf(i18n.T(i18n.ErrDataFolder), err), "cannot create data folder: "+err.Error())
 	}
 	setupLogging(dataDir)
-	log.Printf("Soundboard %s, data in %s", version, dataDir)
 
 	cfgPath := filepath.Join(dataDir, "config.json")
 	st, created, err := store.Open(cfgPath)
 	if st == nil {
-		fatalBox(fmt.Sprintf(uiErrConfig, err), "cannot read config: "+err.Error())
+		fatalBox(fmt.Sprintf(i18n.T(i18n.ErrConfig), err), "cannot read config: "+err.Error())
 	}
+	// The flag wins for this run; otherwise the saved setting counts ("" = follow the system language).
+	langSetting := st.Get().Language
+	if langOverridden {
+		langSetting = langOverride
+	}
+	i18n.Set(i18n.Resolve(langSetting))
+
+	i18n.Logf(i18n.LogStart, version, dataDir)
+	i18n.Logf(i18n.LogLanguage, string(i18n.Current()))
 	if err != nil {
-		log.Printf("config: %v", err)
+		i18n.Logf(i18n.LogConfig, err)
 	}
 	if *portFlag > 0 {
 		st.Update(func(c *store.Config) error { c.Server.Port = *portFlag; return nil })
@@ -55,7 +83,7 @@ func main() {
 	adminURL := fmt.Sprintf("http://localhost:%d/admin", st.Get().Server.Port)
 
 	if !acquireSingleInstance() {
-		log.Printf("already running - opening the admin page")
+		i18n.Logf(i18n.LogAlreadyRunning)
 		openBrowser(adminURL)
 		return
 	}
@@ -68,23 +96,23 @@ func main() {
 		}
 	})
 	if err != nil {
-		fatalBox(fmt.Sprintf(uiErrSoundFolder, err), "sound folder: "+err.Error())
+		fatalBox(fmt.Sprintf(i18n.T(i18n.ErrSoundFolder), err), "sound folder: "+err.Error())
 	}
 	if created {
 		seedFirstRun(lib, st)
 	}
 	t0 := time.Now()
 	lib.Scan()
-	log.Printf("library: loaded %d sounds in %v", len(lib.List()), time.Since(t0).Round(time.Millisecond))
+	i18n.Logf(i18n.LogLibraryLoaded, len(lib.List()), time.Since(t0).Round(time.Millisecond))
 	stopWatch := make(chan struct{})
 	if err := lib.Watch(stopWatch); err != nil {
-		log.Printf("library: folder watching unavailable: %v", err)
+		i18n.Logf(i18n.LogWatchUnavailable, err)
 	}
 
 	// Audio
 	be, err := miniaudio.New()
 	if err != nil {
-		fatalBox(fmt.Sprintf(uiErrAudioSystem, err), "audio system unavailable: "+err.Error())
+		fatalBox(fmt.Sprintf(i18n.T(i18n.ErrAudioSystem), err), "audio system unavailable: "+err.Error())
 	}
 	eng := audio.NewEngine(be)
 	if created {
@@ -111,18 +139,44 @@ func main() {
 
 	go func() {
 		if err := <-serveErr; err != nil {
-			log.Printf("server: %v", err)
-			fatalBox(fmt.Sprintf(uiErrWebServer, err), "web server could not start: "+err.Error())
+			i18n.Logf(i18n.LogServerError, err)
+			fatalBox(fmt.Sprintf(i18n.T(i18n.ErrWebServer), err), "web server could not start: "+err.Error())
 		}
 	}()
 
+	i18n.Logf(i18n.LogAdminURL, adminURL)
 	if created && !*noBrowser {
 		go func() { time.Sleep(500 * time.Millisecond); openBrowser(adminURL) }()
 	}
 
+	// Chosen in the tray menu: save, switch the shell texts and tell open web pages to reload in the new language.
+	setLanguage := func(setting string) {
+		if _, err := st.Update(func(c *store.Config) error { c.Language = setting; return nil }); err != nil {
+			i18n.Logf(i18n.LogConfig, err)
+		}
+		i18n.Set(i18n.Resolve(setting))
+		i18n.Logf(i18n.LogLanguage, string(i18n.Current()))
+		srv.Broadcast(map[string]string{"type": "language"})
+	}
+
 	boardURL := fmt.Sprintf("http://localhost:%d/boards", st.Get().Server.Port)
-	runTray(adminURL, boardURL, shutdown) // blocks until "Quit"
-	log.Printf("exited")
+	runTray(trayConfig{AdminURL: adminURL, BoardURL: boardURL, Language: langSetting, OnLanguage: setLanguage}, shutdown) // blocks until "Quit"
+	i18n.Logf(i18n.LogExited)
+}
+
+// langFromArgs finds the value of -lang / --lang (also in the -lang=de form) without involving the flag package.
+// Anything it cannot make sense of yields "", i.e. the system language; the flag package reports real errors later.
+func langFromArgs(args []string) string {
+	for i, a := range args {
+		a = strings.TrimLeft(a, "-")
+		switch {
+		case a == "lang" && i+1 < len(args):
+			return args[i+1]
+		case strings.HasPrefix(a, "lang="):
+			return strings.TrimPrefix(a, "lang=")
+		}
+	}
+	return ""
 }
 
 func resolveDataDir(flagVal string) string {
@@ -141,9 +195,14 @@ func resolveDataDir(flagVal string) string {
 	return "data"
 }
 
+// setupLogging sets up the log file (English, rotated) and the console. Messages logged through i18n go to the
+// file in English and to the console in the active language; plain log lines (for example from the audio library)
+// go to both unchanged.
 func setupLogging(dataDir string) {
+	console := log.New(os.Stderr, "", log.LstdFlags) // the GUI exe has no valid stderr; Logger ignores write errors
 	f, err := os.OpenFile(filepath.Join(dataDir, "soundboard.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
+		i18n.SetLogSinks(nil, console)
 		return
 	}
 	if st, err := f.Stat(); err == nil && st.Size() > 2<<20 { // simple rotation
@@ -151,29 +210,31 @@ func setupLogging(dataDir string) {
 		os.Rename(f.Name(), f.Name()+".old")
 		f, err = os.OpenFile(filepath.Join(dataDir, "soundboard.log"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 		if err != nil {
+			i18n.SetLogSinks(nil, console)
 			return
 		}
 	}
 	log.SetOutput(teeLog{file: f, console: os.Stderr})
+	i18n.SetLogSinks(log.New(f, "", log.LstdFlags), console)
 }
 
 // seedFirstRun creates an example sound and an example tile so there is something to try right away.
-// Its name and label are user-visible and therefore come from ui_de.go.
+// Its name and label are user-visible and therefore come from the active language.
 func seedFirstRun(lib *library.Library, st *store.Store) {
-	name := uiExampleSound
+	name := i18n.T(i18n.ExampleSound)
 	if err := library.WriteTestTone(filepath.Join(lib.Dir(), name)); err != nil {
-		log.Printf("seed: %v", err)
+		i18n.Logf(i18n.LogSeed, err)
 		return
 	}
 	_, err := st.Update(func(c *store.Config) error {
 		c.Boards[0].Tiles = append(c.Boards[0].Tiles, store.Tile{
-			ID: store.NewID(), X: 0, Y: 0, Label: uiExampleTileName, Sound: name,
+			ID: store.NewID(), X: 0, Y: 0, Label: i18n.T(i18n.ExampleTile), Sound: name,
 			Icon: &store.Icon{Kind: "emoji", Value: "🔔"}, Gain: 1, Mode: audio.ModeOneShot, Color: "#4dabf7",
 		})
 		return nil
 	})
 	if err != nil {
-		log.Printf("seed: %v", err)
+		i18n.Logf(i18n.LogSeed, err)
 	}
 }
 
@@ -183,7 +244,7 @@ func seedFirstRun(lib *library.Library, st *store.Store) {
 func autoSelectDevices(eng *audio.Engine, st *store.Store) {
 	devs, err := eng.Devices()
 	if err != nil {
-		log.Printf("autoselect: %v", err)
+		i18n.Logf(i18n.LogAutoselect, err)
 		return
 	}
 	var in, mon, cable string

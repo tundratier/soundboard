@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"mime"
 	"net"
 	"net/http"
@@ -23,6 +22,7 @@ import (
 	"github.com/skip2/go-qrcode"
 
 	"soundboard/internal/audio"
+	"soundboard/internal/i18n"
 	"soundboard/internal/library"
 	"soundboard/internal/store"
 )
@@ -77,7 +77,7 @@ func (s *Server) Run() error {
 	}
 	s.srv = &http.Server{Handler: s.mux, ReadHeaderTimeout: 10 * time.Second}
 	go s.pumpEvents()
-	log.Printf("server: listening on %s", ln.Addr())
+	i18n.Logf(i18n.LogListening, ln.Addr())
 	if err := s.srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -109,6 +109,7 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/stopall", s.postStopAll)
 	m.HandleFunc("GET /ws", s.ws)
 	m.HandleFunc("GET /icons/{name}", s.getIcon)
+	m.HandleFunc("GET /api/language", s.getLanguage)
 
 	// Admin: localhost only
 	a := s.admin
@@ -380,6 +381,7 @@ type stateResp struct {
 	DataDir  string             `json:"dataDir"`
 	Version  string             `json:"version"`
 	Playing  []string           `json:"playing"`
+	Language string             `json:"language"` // active UI language ("de" or "en")
 	DevError string             `json:"devicesError,omitempty"`
 }
 
@@ -401,7 +403,7 @@ func (s *Server) adminState(w http.ResponseWriter, r *http.Request) {
 	resp := stateResp{
 		Config: cfg, Devices: devs, Status: s.d.Engine.Status(), Sounds: s.d.Lib.List(),
 		Icons: s.listIcons(), Cable: detectCable(devs), URLs: LANURLs(cfg.Server.Port),
-		DataDir: s.d.DataDir, Version: s.d.Version, Playing: s.d.Engine.Playing(),
+		DataDir: s.d.DataDir, Version: s.d.Version, Playing: s.d.Engine.Playing(), Language: string(i18n.Current()),
 	}
 	if err != nil {
 		resp.DevError = err.Error()
@@ -639,4 +641,10 @@ func (s *Server) getQR(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Write(png)
+}
+
+// getLanguage tells the frontend which language to render in; the language is an app-wide setting
+// (flag or tray menu), so every page follows it.
+func (s *Server) getLanguage(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, 200, map[string]string{"language": string(i18n.Current())})
 }

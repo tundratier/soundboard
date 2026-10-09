@@ -4,7 +4,7 @@ package main
 
 import (
 	_ "embed"
-	"log"
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -12,11 +12,15 @@ import (
 
 	"fyne.io/systray"
 
+	"soundboard/internal/i18n"
 	"soundboard/internal/winaudio"
 )
 
 //go:embed icon.ico
 var iconICO []byte
+
+// appName is the product name; it is not translated.
+const appName = "Soundboard"
 
 var (
 	kernel32         = syscall.NewLazyDLL("kernel32.dll")
@@ -37,10 +41,10 @@ func acquireSingleInstance() bool {
 }
 
 // fatalBox shows an error dialog (the GUI exe has no console) and exits the program.
-// dialogText is shown to the user (see ui_de.go); logText goes to the log.
+// dialogText is shown to the user in the active language; logText is English and goes to the log file.
 func fatalBox(dialogText, logText string) {
-	log.Printf("FATAL: %s", logText)
-	t, _ := syscall.UTF16PtrFromString(uiDialogTitle)
+	i18n.Print(fmt.Sprintf("FATAL: %s", logText), fmt.Sprintf(i18n.T(i18n.LogFatal), dialogText))
+	t, _ := syscall.UTF16PtrFromString(appName)
 	m, _ := syscall.UTF16PtrFromString(dialogText)
 	procMessageBoxW.Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), 0x10) // MB_ICONERROR
 	os.Exit(1)
@@ -50,29 +54,80 @@ func openBrowser(url string) {
 	cmd := exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if err := cmd.Start(); err != nil {
-		log.Printf("opening browser: %v", err)
+		i18n.Logf(i18n.LogOpenBrowser, err)
 	}
 }
 
+type trayConfig struct {
+	AdminURL, BoardURL string
+	Language           string               // current language setting: "" (automatic), "de" or "en"
+	OnLanguage         func(setting string) // called when the user picks a language; must switch i18n itself
+}
+
 // runTray shows the tray icon and blocks until "Quit". onQuit cleans up.
-// The texts come from ui_de.go.
-func runTray(adminURL, boardURL string, onQuit func()) {
+// The texts come from i18n and are refreshed when the language is changed in the menu.
+func runTray(cfg trayConfig, onQuit func()) {
 	systray.Run(func() {
 		systray.SetIcon(iconICO)
-		systray.SetTitle(uiDialogTitle)
-		systray.SetTooltip(uiTrayTooltip)
-		systray.SetOnTapped(func() { openBrowser(adminURL) })
-		mAdmin := systray.AddMenuItem(uiTrayAdmin, uiTrayAdminHint)
-		mBoard := systray.AddMenuItem(uiTrayBoards, uiTrayBoardsHint)
+		systray.SetTitle(appName)
+		systray.SetOnTapped(func() { openBrowser(cfg.AdminURL) })
+		mAdmin := systray.AddMenuItem("", "")
+		mBoard := systray.AddMenuItem("", "")
 		systray.AddSeparator()
-		mQuit := systray.AddMenuItem(uiTrayQuit, "")
+		mLang := systray.AddMenuItem("", "")
+		type langItem struct {
+			setting string
+			item    *systray.MenuItem
+		}
+		langs := []langItem{
+			{i18n.SettingAuto, mLang.AddSubMenuItemCheckbox("", "", false)},
+			{"de", mLang.AddSubMenuItemCheckbox("Deutsch", "", false)},
+			{"en", mLang.AddSubMenuItemCheckbox("English", "", false)},
+		}
+		systray.AddSeparator()
+		mQuit := systray.AddMenuItem("", "")
+
+		setting := cfg.Language
+		refresh := func() {
+			systray.SetTooltip(i18n.T(i18n.TrayTooltip))
+			mAdmin.SetTitle(i18n.T(i18n.TrayAdmin))
+			mAdmin.SetTooltip(i18n.T(i18n.TrayAdminHint))
+			mBoard.SetTitle(i18n.T(i18n.TrayBoards))
+			mBoard.SetTooltip(i18n.T(i18n.TrayBoardsHint))
+			mLang.SetTitle(i18n.T(i18n.TrayLanguage))
+			mLang.SetTooltip(i18n.T(i18n.TrayLanguageHint))
+			langs[0].item.SetTitle(i18n.T(i18n.TrayLangAuto)) // "Deutsch" and "English" are not translated
+			mQuit.SetTitle(i18n.T(i18n.TrayQuit))
+			for _, l := range langs {
+				if l.setting == setting {
+					l.item.Check()
+				} else {
+					l.item.Uncheck()
+				}
+			}
+		}
+		choose := func(s string) {
+			if s != setting {
+				setting = s
+				cfg.OnLanguage(s)
+			}
+			refresh()
+		}
+		refresh()
+
 		go func() {
 			for {
 				select {
 				case <-mAdmin.ClickedCh:
-					openBrowser(adminURL)
+					openBrowser(cfg.AdminURL)
 				case <-mBoard.ClickedCh:
-					openBrowser(boardURL)
+					openBrowser(cfg.BoardURL)
+				case <-langs[0].item.ClickedCh:
+					choose(langs[0].setting)
+				case <-langs[1].item.ClickedCh:
+					choose(langs[1].setting)
+				case <-langs[2].item.ClickedCh:
+					choose(langs[2].setting)
 				case <-mQuit.ClickedCh:
 					systray.Quit()
 					return

@@ -5,10 +5,13 @@ build and test commands, and [CONTRIBUTING.md](CONTRIBUTING.md) for the rules be
 
 ## Language
 
-Everything in the repo is English: code, comments, logs, error messages, docs, plans, commit messages. Only the
-user-facing UI is German (frontend texts; on the Go side only `backend/cmd/soundboard/ui_de.go`). The user talks to
-you in German. Device status errors travel as an English message plus an `errorCode`; the frontend translates the
-code. Use a plain `-` instead of the en dash (U+2013).
+Everything in the repo is English: code, comments, the log file, error messages, docs, plans, commit messages. The
+user-facing UI is localized in German and English: frontend texts in `frontend/src/i18n/{de,en}.ts`, shell texts (tray,
+dialogs, flag help, console output, example content) in `backend/internal/i18n` (`catalog_{de,en}.go`). A new UI text
+needs an entry in both catalogs (the type checker and a Go test enforce that). The language is `-lang`, else the saved
+`language` setting (tray menu), else the Windows language. The user talks to you in German. Device status errors
+travel as an English message plus an `errorCode`; the frontend translates the code. Use a plain `-` instead of the
+en dash (U+2013).
 
 ## Git
 
@@ -23,5 +26,5 @@ code. Use a plain `-` instead of the en dash (U+2013).
 ## Working here
 
 - The host has no C compiler: the exe is built in Docker (`scripts\build-backend.ps1`, `scripts\build.ps1`). The pure Go
-  packages are tested on the host: `go test ./internal/audio ./internal/library ./internal/store ./internal/server`.
+  packages are tested on the host: `go test ./internal/audio ./internal/library ./internal/store ./internal/server ./internal/i18n`.
 - The frontend is built with `npm run build` in `frontend/` (output goes to `backend/web/dist`, which is embedded).

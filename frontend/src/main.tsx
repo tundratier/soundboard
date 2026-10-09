@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Admin } from './admin/Admin'
 import { BoardView } from './board/BoardView'
 import { BoardsOverview } from './board/BoardsOverview'
+import { initLanguage } from './i18n'
 import './styles.css'
 
 // One build, several views, chosen by path:
@@ -17,4 +18,5 @@ function route() {
   return <BoardsOverview />
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode>{route()}</StrictMode>)
+// The texts depend on the language the backend reports, so render only after it is known.
+initLanguage().then(() => createRoot(document.getElementById('root')!).render(<StrictMode>{route()}</StrictMode>))

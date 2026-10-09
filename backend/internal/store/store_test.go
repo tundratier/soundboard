@@ -181,3 +181,28 @@ func TestMigrationFromV1(t *testing.T) {
 		t.Fatalf("reopen: %v", err)
 	}
 }
+
+func TestLanguageSetting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	s, _, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Get().Language; got != "" {
+		t.Fatalf("default language = %q, want automatic", got)
+	}
+	for in, want := range map[string]string{"de": "de", "EN": "en", "de-DE": "de", "auto": "", "klingon": ""} {
+		c, err := s.Update(func(c *Config) error { c.Language = in; return nil })
+		if err != nil || c.Language != want {
+			t.Errorf("Language %q → %q, %v; want %q", in, c.Language, err, want)
+		}
+	}
+	// persisted across a restart
+	if _, err := s.Update(func(c *Config) error { c.Language = "de"; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	s2, _, err := Open(path)
+	if err != nil || s2.Get().Language != "de" {
+		t.Fatalf("reopened: %q, %v", s2.Get().Language, err)
+	}
+}

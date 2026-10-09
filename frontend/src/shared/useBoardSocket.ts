@@ -50,6 +50,9 @@ export function useBoardSocket(onBoardChanged: () => void) {
           case 'board':
             cbRef.current()
             break
+          case 'language':
+            location.reload() // the language is chosen in the desktop app; re-render in the new one
+            break
         }
       }
       ws.onclose = () => {
