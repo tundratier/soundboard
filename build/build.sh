@@ -1,6 +1,6 @@
 #!/bin/bash
 # Cross-compiles the Windows exe(s). Runs inside the Docker container (see scripts/build-backend.ps1) and in the
-# Bitbucket pipeline (see build/ci-release.sh). Target: spike | soundboard | all
+# GitHub Actions workflow (see build/ci-release.sh). Target: spike | soundboard | all
 # Environment:
 #   ROOT             repository root (default /src, where the Docker build mounts it)
 #   VERSION          semver embedded in the exe (default "dev")
