@@ -130,7 +130,7 @@ at `HEAD` (pushed together with `--follow-tags`) names it. If `HEAD` has no rele
 
 The release `vX.Y.Z` gets:
 
-- `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `CHANGELOG.md`
+- `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `LICENSE`, `CHANGELOG.md`
 - `soundboard-vX.Y.Z-windows-amd64.zip.sha256` - checksum
 - the changelog section of this version as the release notes
 

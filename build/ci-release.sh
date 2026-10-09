@@ -1,6 +1,6 @@
 #!/bin/bash
 # CI (GitHub Actions): builds the Windows exe for the release tag at HEAD and publishes it as a GitHub release.
-# The tag vX.Y.Z marks the release; the release gets the zip (exes, README, CHANGELOG), its SHA-256 checksum and the
+# The tag vX.Y.Z marks the release; the release gets the zip (exes, README, LICENSE, CHANGELOG), its SHA-256 checksum and the
 # changelog section of the version as release notes.
 #
 # Run from the repository with the frontend already built (backend/web/dist), gcc-mingw-w64 and zip installed and
@@ -45,7 +45,7 @@ OUT="$ROOT/dist"
 NOTES="$OUT/$PKG-release-notes.md"
 rm -rf "${OUT:?}/$PKG" "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$NOTES"
 mkdir -p "$OUT/$PKG"
-cp "$OUT/soundboard.exe" "$OUT/soundboard-console.exe" README.md "$OUT/$PKG/"
+cp "$OUT/soundboard.exe" "$OUT/soundboard-console.exe" README.md LICENSE "$OUT/$PKG/"
 [[ -f CHANGELOG.md ]] && cp CHANGELOG.md "$OUT/$PKG/"
 (cd "$OUT" && zip -qr "$PKG.zip" "$PKG" && sha256sum "$PKG.zip" > "$PKG.zip.sha256")
 
