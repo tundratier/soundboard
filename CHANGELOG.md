@@ -3,6 +3,18 @@
 All notable changes to this project are documented in this file. It is generated from the
 Conventional Commits by scripts/release.ps1; versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.1] - 2026-10-09
+
+### Other changes
+
+No user-visible changes.
+
+- build: list internal changes when a release has no feat or fix commits (9864229)
+- docs: describe the CI release setup (8d7f296)
+- ci: build and publish releases from master with Bitbucket Pipelines (8217f2f)
+- build: let the build script run outside the Docker mount (86f03c2)
+- docs: drop the note about the German first commit message (2bba26b)
+
 ## [0.1.0] - 2026-10-09
 
 ### Features
