@@ -11,12 +11,14 @@ microphone and playback paths running, trigger → level at the monitor, web boa
 
 - [ ] **Latency and crackles** of the microphone path with a real cable. The buffer target is 2 periods
       (≈ 20 ms at a 10 ms period) plus the device buffers, estimated at 40-60 ms total latency. If it is too high or
-      crackles: Admin → Audio → "Erweitert" → buffer size. The drift compensation has only been tested in simulation
+      crackles: Admin → Audio → "Advanced" (German: "Erweitert") → buffer size. The drift compensation has only been tested in simulation
       (±1500 ppm, 60 s, no underruns/overruns) - a **1-hour soak test** on real hardware is still missing
       (`dist\spike.exe run <mic> "CABLE Input" <headphones>` shows underruns/overruns and clock drift).
-- [ ] **"Als Standard-Kommunikationsgerät setzen"** (set as default communications device; `IPolicyConfig`, Windows
+- [ ] **"Set as default communications device"** (German: "Als Standard-Kommunikationsgerät setzen"; `IPolicyConfig`, Windows
       COM). The code compiles but was deliberately not executed because it changes system settings. Please try it once.
-- [ ] **Tray icon** and clicking it (built, but never looked at).
+- [ ] **Tray icon** and clicking it (built, but never looked at), including the new *Language / Sprache* submenu
+      (checkmarks, switching the texts while the menu stays open). The console exe was verified with `-lang` and a
+      saved setting; the tray part could not be clicked from here.
 - [ ] **Windows ducking:** while a communications device is active, Windows lowers other audio streams (including the
       monitor). I do not reset that programmatically; the admin UI shows a hint (Sound → Communications → "Do
       nothing"). If it bothers you, the opt-out could be set per stream via
@@ -43,7 +45,8 @@ microphone and playback paths running, trigger → level at the monitor, web boa
 | Frontend libraries | React, lucide-react (UI icons), nosleep.js (keep the screen on), nothing else. HTML5 drag & drop instead of dnd-kit, plain `fetch` instead of TanStack Query | Few dependencies, enough for this size. HTML5 drag & drop does not work by touch in the admin UI (the admin UI is meant for the desktop; creating a tile also works by click). |
 | API types | Mirrored by hand (`frontend/src/shared/types.ts`), no `tygo` | A generator is not worth it at this size. |
 | Auto-save | Audio settings and boards are saved 0.4-0.5 s after the last change | No "save" button; errors appear as a toast at the bottom. |
-| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
+| Language | The UI is localized in German and English (frontend `src/i18n`, desktop shell `backend/internal/i18n`); the default follows the Windows display language, `-lang` and the tray menu override it. Code, comments, the log file, API error messages, docs and commit messages stay English | One app-wide language: web pages on phones follow the PC's setting, not the phone's. API errors that reach the UI as toasts appear in English after a localized prefix; device status errors have a code that the UI translates. The log file is always English, only the console is localized. The example sound and tile are created in the language active on the first start. |
+| License | MIT (`LICENSE`), copyright holder `tundratier` (the GitHub account) | You asked for MIT. I did not know your legal name, so please put the name you want into `LICENSE`. All dependencies are permissive. |
 
 ## 3. Not implemented (phase 6 / optional)
 
@@ -57,11 +60,9 @@ headphones).
 1. **Bundle VB-Cable?** The license only allows redistribution by agreement; I only built detection + instructions.
    For a purely private project you can of course install it yourself - or should I look at alternatives
    (e.g. the Voicemeeter cable)?
-2. **License** for the repo (you said "as open source as possible"): MIT, Apache-2.0 or GPL? The libraries used
-   (malgo/miniaudio, beep, fsnotify, coder/websocket, systray, go-ole, go-qrcode, nosleep.js) are all permissive.
-3. **Name** of the app - currently simply "Soundboard" (exe, tray, title).
-4. **Optional PIN** for the boards, in case you ever use it on foreign networks?
-5. Should tiles get **hotkeys** later (e.g. F13-F24 for a Stream-Deck-like setup)?
+2. **Name** of the app - currently simply "Soundboard" (exe, tray, title).
+3. **Optional PIN** for the boards, in case you ever use it on foreign networks?
+4. Should tiles get **hotkeys** later (e.g. F13-F24 for a Stream-Deck-like setup)?
 
 ## 5. Multiple boards (decisions)
 
@@ -81,16 +82,14 @@ headphones).
 
 ## 6. CI release workflow (GitHub Actions)
 
-- **Not run on GitHub yet.** `build/ci-release.sh` was tested locally (tag detection, packaging, release notes, new and
-  existing release, error cases) against stand-ins for `gh` and `zip`, and the workflow passes `actionlint`, but the
-  workflow itself, the mingw cross-compile on the GitHub runner and the real `gh release` calls still need a first run.
-  The one-time repository settings are in CONTRIBUTING.md; no secrets are needed.
+- **Verified on GitHub:** pushing `v0.1.2` ran the workflow (frontend build, mingw cross-compile on the runner,
+  `gh release create`) and published the release. Re-running for an existing release (update notes, replace assets) and
+  the error paths were only tested locally against stand-ins for `gh` and `zip`.
 - **Moved from Bitbucket:** the earlier Bitbucket pipeline published to the repository downloads, which the free plan does
-  not have. GitHub has native releases, so the release page, notes and assets replace that.
+  not have. GitHub has native releases, so the release page, notes and assets replace that. No secrets are needed; the
+  workflow uses the built-in `GITHUB_TOKEN` with `contents: write`.
 - **Trigger:** every push to `master`, but it only publishes when `HEAD` carries a release tag. Pushing `master` without
   the tag does nothing; start the workflow by hand after pushing the tag. Tags are pushed with `--follow-tags`.
-- **The workflow only exists on `master` after the next release.** `ci`/`build`/`docs` commits do not release on their own,
-  so to bring it onto `master` right away use `scripts\release.ps1 -Version 0.1.2 -Push`.
-- **Old tags have no GitHub releases.** `v0.1.0` and `v0.1.1` predate the workflow; they are not on GitHub yet either
-  (`git push origin v0.1.0 v0.1.1`) and would have to be released by hand.
+- **No releases for `v0.1.0` and `v0.1.1`.** They predate the workflow and exist on GitHub only as tags. `v0.1.2` is the
+  first GitHub release; it does not contain the `LICENSE` file yet (the zip includes it from the next release on).
 - Not covered: tests or a typecheck on `develop`/pull requests (easy to add as another workflow), signing the exe.

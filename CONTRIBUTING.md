@@ -1,7 +1,7 @@
 # Contributing
 
-Everything in this repository is written in English (code, comments, logs, error messages, docs, commit messages).
-Only the user-facing UI is German: the frontend texts and, on the Go side, `backend/cmd/soundboard/ui_de.go`.
+Everything in this repository is written in English (code, comments, the log file, error messages, docs, commit
+messages). Only the user-facing UI is localized, see [Localization](#localization).
 
 ## Setup after cloning
 
@@ -11,6 +11,28 @@ scripts\setup-git.ps1
 
 This enables the versioned git hooks (`core.hooksPath = .githooks`, which includes the commit message check) and writes
 the git-flow configuration. Building and testing is described in [README.md](README.md).
+
+## Localization
+
+The UI exists in German and English. All user-facing text lives in catalogs, never in the program code:
+
+| Where | Catalogs | What |
+|---|---|---|
+| Web pages | `frontend/src/i18n/de.ts`, `en.ts` | everything the admin UI and the board views show; use `t('key', { param })` and `tp('key', count)` for plurals (`key_one` / `key_other`) |
+| Desktop shell | `backend/internal/i18n/catalog_de.go`, `catalog_en.go` | tray menu, error dialogs, flag help, console output, example content; keys are constants in `keys.go` |
+
+- A new text needs an entry in **both** catalogs. The frontend type checker (`npm run typecheck`) and
+  `go test ./internal/i18n` fail if a key is missing in one language or the format verbs differ.
+- Log lines: write them with `i18n.Logf(key, args...)`. The log file always gets the English text (so bug reports are
+  readable); the console gets the active language. Error text from libraries stays English.
+- API error messages are English; the frontend shows them after a localized prefix. Device status errors carry an
+  `errorCode` that the frontend translates.
+- The language is chosen in this order: the `-lang auto|de|en` flag (this run only), the saved `language` setting in
+  `config.json` (set through the tray menu *Language / Sprache*), the Windows display language (German if it is German,
+  otherwise English). The backend serves the active language at `GET /api/language`; the web pages reload when it
+  changes.
+- Adding a language: a new `Lang` and catalog in `internal/i18n`, a catalog in `frontend/src/i18n`, and an entry in
+  the tray menu (`cmd/soundboard/os_windows.go`).
 
 ## Branching model: git-flow
 
@@ -130,7 +152,7 @@ at `HEAD` (pushed together with `--follow-tags`) names it. If `HEAD` has no rele
 
 The release `vX.Y.Z` gets:
 
-- `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `CHANGELOG.md`
+- `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `LICENSE`, `CHANGELOG.md`
 - `soundboard-vX.Y.Z-windows-amd64.zip.sha256` - checksum
 - the changelog section of this version as the release notes
 
@@ -146,8 +168,8 @@ One-time setup on GitHub (no secrets or tokens are needed; the workflow uses the
    workflow itself never pushes.
 
 Tags are not pushed by a plain `git push`: use `git push origin master develop --follow-tags` (or
-`scripts\release.ps1 -Push`). Tags that were created before the workflow existed (`v0.1.0`, `v0.1.1`) can be pushed with
-`git push origin v0.1.0 v0.1.1`; that creates no releases, only the tags.
+`scripts\release.ps1 -Push`). Pushing only a tag does not start the workflow (it runs on pushes to `master`); use the
+manual run for that. `v0.1.0` and `v0.1.1` predate the workflow and therefore have no GitHub release.
 
 The packaging logic lives in `build/ci-release.sh` and can be tried locally without publishing, using the existing exes:
 `RELEASE_TAG=v0.1.1 DRY_RUN=1 SKIP_BUILD=1 bash build/ci-release.sh` (needs `zip`).

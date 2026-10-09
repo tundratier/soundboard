@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,6 +21,7 @@ import (
 	"github.com/gopxl/beep/v2/wav"
 
 	"soundboard/internal/audio"
+	"soundboard/internal/i18n"
 )
 
 // maxFrames limits the length of a sound (RAM: ~23 MB per minute).
@@ -69,7 +69,7 @@ func Supported(name string) bool { return extensions[strings.ToLower(filepath.Ex
 func (l *Library) Scan() {
 	files, err := os.ReadDir(l.dir)
 	if err != nil {
-		log.Printf("library: reading folder: %v", err)
+		i18n.Logf(i18n.LogLibraryReadFolder, err)
 		return
 	}
 	seen := map[string]bool{}
@@ -117,7 +117,7 @@ func (l *Library) reload(name string) bool {
 	snd, err := Decode(path)
 	if err != nil {
 		e.info.Error = err.Error()
-		log.Printf("library: %s: %v", name, err)
+		i18n.Logf(i18n.LogLibraryFile, name, err)
 	} else {
 		snd.Name = name
 		e.snd = snd
@@ -255,7 +255,7 @@ func (l *Library) Watch(stop <-chan struct{}) error {
 				if !ok {
 					return
 				}
-				log.Printf("library: watcher: %v", err)
+				i18n.Logf(i18n.LogLibraryWatcher, err)
 			case <-tick.C:
 				changed := false
 				for name, due := range pending {

@@ -600,7 +600,13 @@ a.btn {
   flex-wrap: wrap;
   align-items: center;
 }
+/* The editor card below the tabs joins them: square top-left corner, and the active tab overlaps its top border. */
+.tabs + .card {
+  border-top-left-radius: 0;
+}
 .tab {
+  position: relative;
+  margin-bottom: -1px;
   max-width: 220px;
   padding: 6px 12px;
   border: 1px solid var(--line);

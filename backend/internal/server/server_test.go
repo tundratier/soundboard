@@ -19,6 +19,7 @@ import (
 	"github.com/coder/websocket"
 
 	"soundboard/internal/audio"
+	"soundboard/internal/i18n"
 	"soundboard/internal/library"
 	"soundboard/internal/store"
 )
@@ -350,5 +351,28 @@ func TestMultipleBoardsRoutes(t *testing.T) {
 	}
 	if resp, _ = http.Get(e.srv.URL + "/assets/a.js"); resp.StatusCode != 200 {
 		t.Errorf("asset: %d", resp.StatusCode)
+	}
+}
+
+func TestLanguageEndpoint(t *testing.T) {
+	defer i18n.Set(i18n.Current())
+	e := newEnv(t)
+	for _, l := range []i18n.Lang{i18n.De, i18n.En} {
+		i18n.Set(l)
+		resp, err := http.Get(e.srv.URL + "/api/language") // public: board pages on the LAN need it too
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatal(err, resp)
+		}
+		var got map[string]string
+		json.NewDecoder(resp.Body).Decode(&got)
+		if got["language"] != string(l) {
+			t.Errorf("/api/language = %v, want %q", got, l)
+		}
+		var st stateResp
+		w := e.adminReq("GET", "/api/admin/state", nil)
+		json.NewDecoder(w.Body).Decode(&st)
+		if st.Language != string(l) {
+			t.Errorf("admin state language = %q, want %q", st.Language, l)
+		}
 	}
 }

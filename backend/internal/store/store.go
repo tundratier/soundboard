@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"soundboard/internal/audio"
+	"soundboard/internal/i18n"
 )
 
 const (
@@ -61,6 +62,8 @@ type Config struct {
 	Audio   audio.Settings `json:"audio"`
 	Server  Server         `json:"server"`
 	Boards  []Board        `json:"boards"`
+	// Language is the UI language: "" (automatic, follows the Windows language), "de" or "en".
+	Language string `json:"language,omitempty"`
 }
 
 func Default() Config {
@@ -236,6 +239,11 @@ func writeAtomic(path string, c *Config) error {
 
 // Validate fixes harmless values (clamping, defaults) and rejects inconsistencies.
 func Validate(c *Config) error {
+	if lang, ok := i18n.Normalize(c.Language); ok {
+		c.Language = lang
+	} else {
+		c.Language = i18n.SettingAuto // unknown value (e.g. a hand-edited file): fall back to automatic
+	}
 	a := &c.Audio
 	a.MicGain = clampf(a.MicGain, 0, 4)
 	a.FxGainMain = clampf(a.FxGainMain, 0, 4)

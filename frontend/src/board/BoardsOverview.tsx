@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../shared/api'
+import { t, tp } from '../i18n'
 import { KeepAwakeButton } from '../shared/KeepAwakeButton'
 import { DEFAULT_TILE_COLOR } from '../shared/TileFace'
 import type { BoardSummary } from '../shared/types'
@@ -23,29 +24,29 @@ export function BoardsOverview() {
   const { connected } = useBoardSocket(refetch)
 
   useEffect(() => {
-    document.title = 'Boards'
+    document.title = t('boards.title')
   }, [])
 
   if (!boards) {
-    return <div className="center-msg">{error ? `Keine Verbindung: ${error}` : 'Lade …'}</div>
+    return <div className="center-msg">{error ? t('common.noConnection', { error }) : t('common.loading')}</div>
   }
 
   return (
     <div className="board-page">
       <header className="board-head">
-        <h1>Boards</h1>
-        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt - verbinde neu …'} />
+        <h1>{t('boards.title')}</h1>
+        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? t('common.connected') : t('common.disconnected')} />
         <div className="grow" />
         <KeepAwakeButton />
       </header>
-      {!connected && <div className="banner">Verbindung getrennt - versuche erneut …</div>}
+      {!connected && <div className="banner">{t('common.connectionLost')}</div>}
       <main className="board-cards">
         {boards.map((b) => (
           <a key={b.id} className="board-card" href={`/boards/${encodeURIComponent(b.id)}`}>
             <BoardPreview board={b} />
             <span className="board-card-name">{b.name}</span>
             <span className="board-card-meta">
-              {b.tiles.length} {b.tiles.length === 1 ? 'Kachel' : 'Kacheln'} · {b.cols}×{b.rows}
+              {tp('boards.tiles', b.tiles.length)} · {b.cols}×{b.rows}
             </span>
           </a>
         ))}

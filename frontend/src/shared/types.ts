@@ -1,13 +1,16 @@
 // Mirror of the Go structures (backend/internal/store, audio, library, server).
 // When the backend data model changes, update this file accordingly.
 
+import type { MessageKey } from '../i18n'
+
 export type PlayMode = 'oneshot' | 'restart' | 'toggle' | 'loop'
 
-export const PLAY_MODES: { value: PlayMode; label: string; hint: string }[] = [
-  { value: 'oneshot', label: 'Einmal', hint: 'Jeder Druck startet den Sound (auch überlappend)' },
-  { value: 'restart', label: 'Neustart', hint: 'Erneuter Druck startet von vorn' },
-  { value: 'toggle', label: 'Start/Stopp', hint: 'Zweiter Druck stoppt den Sound' },
-  { value: 'loop', label: 'Schleife', hint: 'Läuft in Endlosschleife, zweiter Druck stoppt' },
+/** The play modes with the keys of their (localized) name and hint; see i18n/de.ts. */
+export const PLAY_MODES: { value: PlayMode; label: MessageKey; hint: MessageKey }[] = [
+  { value: 'oneshot', label: 'mode.oneshot', hint: 'mode.oneshot.hint' },
+  { value: 'restart', label: 'mode.restart', hint: 'mode.restart.hint' },
+  { value: 'toggle', label: 'mode.toggle', hint: 'mode.toggle.hint' },
+  { value: 'loop', label: 'mode.loop', hint: 'mode.loop.hint' },
 ]
 
 export interface TileIcon {
@@ -109,6 +112,7 @@ export interface AdminState {
   version: string
   playing: string[]
   devicesError?: string
+  language: 'de' | 'en' // active UI language; the admin page reloads when it differs from the one it rendered in
 }
 
 export interface BoardResponse {
@@ -131,3 +135,4 @@ export type ServerEvent =
   | { type: 'started'; tile: string }
   | { type: 'stopped'; tile: string }
   | { type: 'board' }
+  | { type: 'language' } // the UI language was changed in the tray menu: reload to render in the new one

@@ -6,7 +6,8 @@ A local soundboard for Windows, shipped as a single `soundboard.exe` (Go backend
 - **Monitor** = effects only, on your headphones
 - **Boards** in the browser (phones/tablets on the same network too); the admin UI is only reachable from the PC itself
 
-The UI is in German; code, logs and documentation are in English.
+The UI is available in German and English (see [Language](#language)); code, the log file and documentation are in
+English.
 
 ## Prerequisite: a virtual cable (one-time)
 
@@ -14,8 +15,8 @@ Windows has no built-in virtual audio device, and writing our own driver would m
 So install [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) once (free, needs a reboot). Then:
 
 1. **Main output** = `CABLE Input`, **input** = your microphone, **monitor** = your headphones.
-2. In Discord & co. pick `CABLE Output` as the microphone - or click "Als Standard-Kommunikationsgerät setzen"
-   (set as default communications device) under *Windows-Integration* in the admin UI.
+2. In Discord & co. pick `CABLE Output` as the microphone - or click "Set as default communications device"
+   (German UI: "Als Standard-Kommunikationsgerät setzen") under *Windows integration* in the admin UI.
 
 Without the cable everything still works, but the mixed output then goes to a real device.
 
@@ -39,8 +40,20 @@ Data lives in `%APPDATA%\Soundboard` (`config.json`, `sounds\`, `icons\`, `sound
 If a folder named `data` sits next to the exe, it is used instead (portable mode).
 You can also copy sounds straight into `sounds\` - the folder is watched.
 
-Command-line options: `-data <folder>`, `-port <n>`, `-no-browser`, `-version`.
+Command-line options: `-data <folder>`, `-port <n>`, `-no-browser`, `-lang <auto|de|en>`, `-version`.
 `soundboard-console.exe` is the same app with a console window (logs visible).
+
+## Language
+
+The app, the tray menu, the console output and the web pages come in German and English. By default the language
+follows Windows: German if the Windows display language is German, English otherwise. To change it:
+
+- **Desktop exe (`soundboard.exe`):** tray icon -> *Language / Sprache* -> Automatic, Deutsch or English. The choice is
+  saved in `config.json` (`language`); open web pages switch on their own.
+- **Console exe (`soundboard-console.exe`):** `-lang auto|de|en` for that run, for example
+  `soundboard-console.exe -lang en`.
+
+The log file (`soundboard.log`) is always English; the console shows the log lines in the chosen language.
 
 ## Building
 
@@ -59,7 +72,7 @@ Tests (plain Go, no cgo; run on the host or in the container):
 
 ```powershell
 cd backend
-go test ./internal/audio ./internal/library ./internal/store ./internal/server
+go test ./internal/audio ./internal/library ./internal/store ./internal/server ./internal/i18n
 ```
 
 `dist\spike.exe` is a diagnostic tool: without arguments it lists the audio devices; with
@@ -85,8 +98,9 @@ backend/internal/winaudio   set the default device (IPolicyConfig)
 backend/internal/library    sound folder: decode (wav/mp3/flac/ogg), watch, upload
 backend/internal/store      config.json, validation
 backend/internal/server     REST + WebSocket, admin protection, static files
+backend/internal/i18n       language choice and the German/English catalogs of the desktop shell
 backend/web                 embedded frontend build (go:embed)
-frontend/                   Vite + React + TypeScript (board and admin views)
+frontend/                   Vite + React + TypeScript (board and admin views; texts in src/i18n)
 ```
 
 Audio path: microphone → ring buffer → (drift compensation) → main bus (+ effects) → limiter → `CABLE Input`;
@@ -98,5 +112,11 @@ cursors; only the microphone path (capture clock ≠ main clock) needs the drift
 The boards are deliberately not password-protected. The admin UI is only reachable from `localhost` (loopback client,
 `Host` header check against DNS rebinding, a custom header against CSRF from foreign web pages). On first start the
 Windows firewall asks for permission - allow "private networks".
+
+## License
+
+[MIT](LICENSE). The libraries used keep their own licenses (all permissive: malgo/miniaudio, beep, fsnotify,
+coder/websocket, systray, go-ole, go-qrcode, React, lucide-react, nosleep.js). The VB-Audio Virtual Cable is a separate
+product with its own license and is not part of this repository.
 
 Open points and decisions taken: [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Original plan: [PLAN.md](PLAN.md).

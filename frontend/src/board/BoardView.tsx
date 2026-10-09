@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { LayoutGrid, Maximize, Minimize, Repeat, Square, TriangleAlert } from 'lucide-react'
 import { ApiError, api } from '../shared/api'
+import { t } from '../i18n'
 import { KeepAwakeButton } from '../shared/KeepAwakeButton'
 import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
 import type { BoardResponse, Tile } from '../shared/types'
@@ -58,16 +59,16 @@ export function BoardView({ boardId }: { boardId: string }) {
     return (
       <div className="center-msg">
         <div style={{ textAlign: 'center' }}>
-          <p>Dieses Board gibt es nicht (mehr).</p>
+          <p>{t('board.notFound')}</p>
           <a className="btn" href="/boards">
-            <LayoutGrid size={16} /> Zur Übersicht
+            <LayoutGrid size={16} /> {t('board.toOverview')}
           </a>
         </div>
       </div>
     )
   }
   if (!data) {
-    return <div className="center-msg">{error ? `Keine Verbindung: ${error}` : 'Lade …'}</div>
+    return <div className="center-msg">{error ? t('common.noConnection', { error }) : t('common.loading')}</div>
   }
 
   const { board, missing } = data
@@ -90,23 +91,23 @@ export function BoardView({ boardId }: { boardId: string }) {
   return (
     <div className="board-page">
       <header className="board-head">
-        <a className="btn icon" href="/boards" title="Alle Boards">
+        <a className="btn icon" href="/boards" title={t('board.allBoards')}>
           <LayoutGrid size={18} />
         </a>
         <h1>{board.name}</h1>
-        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt - verbinde neu …'} />
+        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? t('common.connected') : t('common.disconnected')} />
         <div className="grow" />
-        <button className="btn danger" onPointerDown={stopAll} title="Alle Sounds stoppen">
-          <Square size={16} /> Stopp
+        <button className="btn danger" onPointerDown={stopAll} title={t('common.stopAll')}>
+          <Square size={16} /> {t('board.stop')}
         </button>
         <KeepAwakeButton />
         {document.fullscreenEnabled && (
-          <button className="btn icon" onClick={toggleFullscreen} title="Vollbild">
+          <button className="btn icon" onClick={toggleFullscreen} title={t('board.fullscreen')}>
             {fullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
           </button>
         )}
       </header>
-      {!connected && <div className="banner">Verbindung getrennt - versuche erneut …</div>}
+      {!connected && <div className="banner">{t('common.connectionLost')}</div>}
       <main
         className="board-grid"
         style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${board.rows}, minmax(0, 1fr))` }}
@@ -141,7 +142,7 @@ function TileButton({
       }}
       onContextMenu={(e) => e.preventDefault()}
       disabled={missing}
-      title={missing ? `Sound fehlt: ${tile.sound}` : undefined}
+      title={missing ? t('board.soundMissing', { sound: tile.sound }) : undefined}
     >
       <TileIconView tile={tile} />
       <span className="tile-label">{tileLabel(tile)}</span>

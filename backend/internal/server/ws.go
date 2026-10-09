@@ -3,12 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/coder/websocket"
+
+	"soundboard/internal/i18n"
 )
 
 type client struct {
@@ -123,7 +124,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		switch m.Type {
 		case "trigger":
 			if !s.trigger(m.Tile) {
-				log.Printf("ws: unknown tile %q", m.Tile)
+				i18n.Logf(i18n.LogUnknownTile, m.Tile)
 			}
 		case "stop":
 			s.d.Engine.Stop(m.Tile)

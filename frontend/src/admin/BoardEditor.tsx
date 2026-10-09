@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ExternalLink, LayoutGrid, Play, Square, Trash2, Upload, X, Zap } from 'lucide-react'
+import { t, tp } from '../i18n'
 import { api } from '../shared/api'
 import { SLUG_MAX, slugify } from '../shared/slug'
 import { DEFAULT_TILE_COLOR, TileIconView, tileLabel } from '../shared/TileFace'
@@ -104,27 +105,27 @@ export function BoardEditor({
   const cells = []
   for (let y = 0; y < board.rows; y++) {
     for (let x = 0; x < board.cols; x++) {
-      const t = tileAt(x, y)
+      const tile = tileAt(x, y)
       const key = `${x},${y}`
       cells.push(
         <div
           key={key}
-          className={`cell${over === key ? ' dragover' : ''}${t && t.id === selected ? ' selected' : ''}`}
-          draggable={!!t}
-          onDragStart={(e) => t && (e.dataTransfer.setData(TILE_DRAG_TYPE, t.id), (e.dataTransfer.effectAllowed = 'move'))}
+          className={`cell${over === key ? ' dragover' : ''}${tile && tile.id === selected ? ' selected' : ''}`}
+          draggable={!!tile}
+          onDragStart={(e) => tile && (e.dataTransfer.setData(TILE_DRAG_TYPE, tile.id), (e.dataTransfer.effectAllowed = 'move'))}
           onDragOver={(e) => {
             e.preventDefault()
             setOver(key)
           }}
           onDragLeave={() => setOver((o) => (o === key ? null : o))}
           onDrop={(e) => onDrop(e, x, y)}
-          onClick={() => setSelected(t ? t.id : createTile(x, y).id)}
-          title={t ? 'Bearbeiten · ziehen zum Verschieben' : 'Klicken zum Anlegen · Sound hierher ziehen'}
+          onClick={() => setSelected(tile ? tile.id : createTile(x, y).id)}
+          title={tile ? t('editor.cellEdit') : t('editor.cellCreate')}
         >
-          {t ? (
-            <div className="tile" style={{ ['--tile-color' as string]: t.color || DEFAULT_TILE_COLOR }}>
-              <TileIconView tile={t} />
-              <span className="tile-label">{tileLabel(t)}</span>
+          {tile ? (
+            <div className="tile" style={{ ['--tile-color' as string]: tile.color || DEFAULT_TILE_COLOR }}>
+              <TileIconView tile={tile} />
+              <span className="tile-label">{tileLabel(tile)}</span>
             </div>
           ) : (
             <span>+</span>
@@ -138,45 +139,43 @@ export function BoardEditor({
     <section className="card">
       <div className="row">
         <h2 className="grow">
-          <LayoutGrid size={18} /> Board
+          <LayoutGrid size={18} /> {t('editor.title')}
         </h2>
-        <button className="btn small" disabled={!canMoveLeft} onClick={() => onMove(-1)} title="Tab nach links verschieben">
+        <button className="btn small" disabled={!canMoveLeft} onClick={() => onMove(-1)} title={t('editor.moveLeft')}>
           <ArrowLeft size={13} />
         </button>
-        <button className="btn small" disabled={!canMoveRight} onClick={() => onMove(1)} title="Tab nach rechts verschieben">
+        <button className="btn small" disabled={!canMoveRight} onClick={() => onMove(1)} title={t('editor.moveRight')}>
           <ArrowRight size={13} />
         </button>
-        <a className="btn small" href={`/boards/${encodeURIComponent(board.id)}`} target="_blank" rel="noreferrer" title="Dieses Board im Browser öffnen">
-          <ExternalLink size={13} /> Öffnen
+        <a className="btn small" href={`/boards/${encodeURIComponent(board.id)}`} target="_blank" rel="noreferrer" title={t('editor.openTitle')}>
+          <ExternalLink size={13} /> {t('editor.open')}
         </a>
-        <button className="btn small danger" disabled={!onDelete} onClick={onDelete} title={onDelete ? 'Board löschen' : 'Das letzte Board kann nicht gelöscht werden'}>
-          <Trash2 size={13} /> Löschen
+        <button className="btn small danger" disabled={!onDelete} onClick={onDelete} title={onDelete ? t('editor.deleteTitle') : t('editor.lastBoard')}>
+          <Trash2 size={13} /> {t('common.delete')}
         </button>
       </div>
       <div className="row">
         <div className="field" style={{ flex: 3 }}>
-          <label>Name</label>
+          <label>{t('editor.name')}</label>
           <input type="text" value={board.name} onChange={(e) => setBoard({ ...board, name: e.target.value })} />
         </div>
         <div className="field" style={{ flex: 3 }}>
-          <label>Pfad (URL)</label>
+          <label>{t('editor.path')}</label>
           <SlugInput value={board.id} otherIds={otherIds} onCommit={(id) => setBoard({ ...board, id })} notify={notify} />
         </div>
       </div>
       <div className="row">
         <div className="field">
-          <label>Spalten (x)</label>
+          <label>{t('editor.cols')}</label>
           <input type="number" min={1} max={MAX_GRID} value={board.cols} onChange={(e) => resize(+e.target.value, board.rows)} />
         </div>
         <div className="field">
-          <label>Zeilen (y)</label>
+          <label>{t('editor.rows')}</label>
           <input type="number" min={1} max={MAX_GRID} value={board.rows} onChange={(e) => resize(board.cols, +e.target.value)} />
         </div>
       </div>
       {hidden.length > 0 && (
-        <div className="note warn">
-          {hidden.length} Kachel(n) liegen außerhalb des Rasters und sind ausgeblendet (sie bleiben gespeichert, solange du das Raster nicht wieder vergrößerst und sie löschst).
-        </div>
+        <div className="note warn">{tp('editor.hidden', hidden.length)}</div>
       )}
       <div className="editor-grid" style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))` }}>
         {cells}
@@ -220,7 +219,12 @@ function TileEditor({
   const iconRef = useRef<HTMLInputElement>(null)
   const knownSound = sounds.some((s) => s.name === tile.sound)
   const mode = PLAY_MODES.find((m) => m.value === tile.mode)
-  const balLabel = tile.pan === 0 ? 'Mitte' : tile.pan < 0 ? `links ${Math.round(-tile.pan * 100)} %` : `rechts ${Math.round(tile.pan * 100)} %`
+  const balLabel =
+    tile.pan === 0
+      ? t('editor.balanceCenter')
+      : tile.pan < 0
+        ? t('editor.balanceLeft', { percent: Math.round(-tile.pan * 100) })
+        : t('editor.balanceRight', { percent: Math.round(tile.pan * 100) })
 
   const uploadIcon = async (files: File[]) => {
     if (!files.length) return
@@ -240,19 +244,19 @@ function TileEditor({
     <div className="card" style={{ background: 'var(--bg-3)' }}>
       <div className="row">
         <h3 className="grow">
-          Kachel ({tile.x + 1}, {tile.y + 1})
+          {t('tileEditor.title', { x: tile.x + 1, y: tile.y + 1 })}
         </h3>
-        <button className="btn small" onClick={onClose} title="Schließen">
+        <button className="btn small" onClick={onClose} title={t('tileEditor.close')}>
           <X size={14} />
         </button>
       </div>
 
       <div className="field">
-        <label>Sound</label>
+        <label>{t('tileEditor.sound')}</label>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           <select value={tile.sound} onChange={(e) => onChange({ sound: e.target.value, label: tile.label || e.target.value.replace(/\.[^.]+$/, '') })}>
-            <option value="">- kein Sound -</option>
-            {!knownSound && tile.sound && <option value={tile.sound}>{tile.sound} (fehlt)</option>}
+            <option value="">{t('tileEditor.noSound')}</option>
+            {!knownSound && tile.sound && <option value={tile.sound}>{t('tileEditor.soundMissing', { sound: tile.sound })}</option>}
             {sounds
               .filter((s) => !s.error)
               .map((s) => (
@@ -261,24 +265,24 @@ function TileEditor({
                 </option>
               ))}
           </select>
-          <button className="btn" disabled={!knownSound} onClick={preview} title="Vorhören auf dem Monitor">
+          <button className="btn" disabled={!knownSound} onClick={preview} title={t('tileEditor.preview')}>
             <Play size={14} />
           </button>
-          <button className="btn" onClick={() => api.previewStop()} title="Vorhören stoppen">
+          <button className="btn" onClick={() => api.previewStop()} title={t('common.previewStop')}>
             <Square size={14} />
           </button>
         </div>
       </div>
 
       <div className="field">
-        <label>Beschriftung</label>
-        <input type="text" value={tile.label ?? ''} placeholder="(Dateiname)" onChange={(e) => onChange({ label: e.target.value })} />
+        <label>{t('tileEditor.label')}</label>
+        <input type="text" value={tile.label ?? ''} placeholder={t('tileEditor.labelPlaceholder')} onChange={(e) => onChange({ label: e.target.value })} />
       </div>
 
       <div className="field">
-        <div className="label">Icon</div>
+        <div className="label">{t('tileEditor.icon')}</div>
         <div className="emoji-row">
-          <button className={!tile.icon ? 'active' : ''} onClick={() => onChange({ icon: undefined })} title="Kein Icon">
+          <button className={!tile.icon ? 'active' : ''} onClick={() => onChange({ icon: undefined })} title={t('tileEditor.noIcon')}>
             ∅
           </button>
           {EMOJIS.map((em) => (
@@ -291,12 +295,12 @@ function TileEditor({
           <input
             type="text"
             style={{ width: 120 }}
-            placeholder="Eigenes Emoji"
+            placeholder={t('tileEditor.customEmoji')}
             value={tile.icon?.kind === 'emoji' ? tile.icon.value : ''}
             onChange={(e) => onChange({ icon: e.target.value ? { kind: 'emoji', value: e.target.value.slice(0, 8) } : undefined })}
           />
           <button className="btn small" onClick={() => iconRef.current?.click()}>
-            <Upload size={13} /> Bild hochladen
+            <Upload size={13} /> {t('tileEditor.uploadImage')}
           </button>
           <input ref={iconRef} type="file" hidden accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*" onChange={(e) => (uploadIcon([...(e.target.files ?? [])]), (e.target.value = ''))} />
         </div>
@@ -313,14 +317,14 @@ function TileEditor({
 
       <div className="field">
         <label>
-          <span>Balance</span>
+          <span>{t('tileEditor.balance')}</span>
           <span>{balLabel}</span>
         </label>
         <input type="range" min={-1} max={1} step={0.05} value={tile.pan} onChange={(e) => onChange({ pan: +e.target.value })} onDoubleClick={() => onChange({ pan: 0 })} />
       </div>
       <div className="field">
         <label>
-          <span>Lautstärke</span>
+          <span>{t('tileEditor.volume')}</span>
           <span>{Math.round(tile.gain * 100)} %</span>
         </label>
         <input type="range" min={0} max={2} step={0.05} value={tile.gain} onChange={(e) => onChange({ gain: +e.target.value })} onDoubleClick={() => onChange({ gain: 1 })} />
@@ -328,36 +332,36 @@ function TileEditor({
 
       <div className="row">
         <div className="field">
-          <label>Verhalten</label>
+          <label>{t('tileEditor.mode')}</label>
           <select value={tile.mode} onChange={(e) => onChange({ mode: e.target.value as Tile['mode'] })}>
             {PLAY_MODES.map((m) => (
               <option key={m.value} value={m.value}>
-                {m.label}
+                {t(m.label)}
               </option>
             ))}
           </select>
         </div>
         <div className="field" style={{ flex: 0 }}>
-          <label>Farbe</label>
+          <label>{t('tileEditor.color')}</label>
           <div className="row" style={{ flexWrap: 'nowrap' }}>
             <input type="color" value={tile.color || DEFAULT_TILE_COLOR} onChange={(e) => onChange({ color: e.target.value })} />
             {tile.color && (
-              <button className="btn small" onClick={() => onChange({ color: undefined })} title="Standardfarbe">
+              <button className="btn small" onClick={() => onChange({ color: undefined })} title={t('tileEditor.defaultColor')}>
                 ∅
               </button>
             )}
           </div>
         </div>
       </div>
-      <div className="note">{mode?.hint}</div>
+      <div className="note">{mode && t(mode.hint)}</div>
 
       <div className="row">
-        <button className="btn" disabled={!knownSound} onClick={() => api.trigger(tile.id).catch((e) => notify(e.message, true))} title="Löst die Kachel wie im Board aus (Hauptausgang + Monitor)">
-          <Zap size={14} /> Live auslösen
+        <button className="btn" disabled={!knownSound} onClick={() => api.trigger(tile.id).catch((e) => notify(e.message, true))} title={t('tileEditor.liveTitle')}>
+          <Zap size={14} /> {t('tileEditor.live')}
         </button>
         <div className="grow" />
         <button className="btn danger" onClick={onRemove}>
-          <Trash2 size={14} /> Kachel löschen
+          <Trash2 size={14} /> {t('tileEditor.remove')}
         </button>
       </div>
     </div>
@@ -390,7 +394,7 @@ function SlugInput({
   const commit = () => {
     const id = text.trim() === '' ? value : slugify(text)
     if (otherIds.includes(id)) {
-      notify(`Der Pfad „${id}“ wird schon von einem anderen Board verwendet.`, true)
+      notify(t('editor.pathTaken', { id }), true)
       setText(value)
       return
     }

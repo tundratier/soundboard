@@ -1,10 +1,11 @@
 package audio
 
 import (
-	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"soundboard/internal/i18n"
 )
 
 // Settings are the audio settings the engine applies.
@@ -206,11 +207,11 @@ func (e *Engine) reconcilePlayback(r *role, bus *Bus, per int, force bool) {
 	if err != nil {
 		r.err, r.errCode = err.Error(), "open_failed"
 		r.retryAt = time.Now().Add(5 * time.Second)
-		log.Printf("audio: opening %s failed: %v", r.name, err)
+		i18n.Logf(i18n.LogAudioOpenFailed, r.name, err)
 		return
 	}
 	r.stream, r.openID, r.openPer, r.err, r.errCode = s, r.wantID, per, "", ""
-	log.Printf("audio: %s running on %q", r.name, name)
+	i18n.Logf(i18n.LogAudioRunning, r.name, name)
 }
 
 func (e *Engine) reconcileInput(per int, force bool) {
@@ -238,12 +239,12 @@ func (e *Engine) reconcileInput(per int, force bool) {
 	if err != nil {
 		r.err, r.errCode = err.Error(), "open_failed"
 		r.retryAt = time.Now().Add(5 * time.Second)
-		log.Printf("audio: opening input failed: %v", err)
+		i18n.Logf(i18n.LogAudioInputOpenFailed, err)
 		return
 	}
 	e.mainBus.mic.Store(reader)
 	r.stream, r.openID, r.openPer, r.err, r.errCode = s, r.wantID, per, "", ""
-	log.Printf("audio: input running on %q", name)
+	i18n.Logf(i18n.LogAudioInputRunning, name)
 }
 
 func (e *Engine) closeInput() {
