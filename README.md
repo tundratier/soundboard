@@ -66,6 +66,14 @@ go test ./internal/audio ./internal/library ./internal/store ./internal/server
 `spike run <mic> <output> [monitor]` it runs a long-duration test with statistics (arguments are substrings of the
 device names).
 
+## Versions and contributing
+
+The version is derived automatically from git tags and [Conventional Commits](https://www.conventionalcommits.org)
+(Semantic Versioning); `soundboard.exe -version` and the admin UI show it. Branching follows git-flow
+(`master` = releases, `develop` = integration, `feature/*` for changes). Run `scripts\setup-git.ps1` once after
+cloning. Commit format, branching, versioning and the release process are described in
+[CONTRIBUTING.md](CONTRIBUTING.md); releases are listed in [CHANGELOG.md](CHANGELOG.md).
+
 ## Layout
 
 ```
