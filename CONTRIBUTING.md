@@ -121,3 +121,29 @@ git push origin master develop --follow-tags
 
 `scripts\release.ps1 -Push` pushes as part of the release. A release needs at least one `feat`, `fix`, `perf` or breaking
 commit since the last tag. Rebuild the exe afterwards on the tag (`scripts\build.ps1`) to get the clean version.
+
+## CI release (Bitbucket Pipelines)
+
+Every push to `master` runs `bitbucket-pipelines.yml`: it builds the frontend, cross-compiles the exe for Windows and
+publishes the release. `master` only receives git-flow releases, so a push there is a release; the tag `vX.Y.Z` at `HEAD`
+(pushed together with `--follow-tags`) names it. If `HEAD` has no release tag the pipeline does nothing.
+
+Bitbucket has no GitHub-style releases, so the release is published in the repository's **Downloads**
+(`Repository > Downloads`):
+
+- `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `CHANGELOG.md`
+- `soundboard-vX.Y.Z-windows-amd64.zip.sha256` - checksum
+- `soundboard-vX.Y.Z-windows-amd64-release-notes.md` - the changelog section of this version
+
+Uploading a file with an existing name replaces it, so re-running the pipeline is safe.
+
+One-time setup in Bitbucket:
+
+1. *Repository settings > Pipelines > Settings*: enable Pipelines.
+2. *Repository settings > Security > Access tokens*: create a repository access token with the scope
+   **Repositories: Write**.
+3. *Repository settings > Pipelines > Repository variables*: add `BB_ACCESS_TOKEN` with that token, marked **Secured**.
+   (Alternatively `BB_USERNAME` + `BB_APP_PASSWORD` with a user that may write to the repository.)
+
+The packaging logic lives in `build/ci-release.sh` and can be tried locally without uploading, using the existing exes:
+`RELEASE_TAG=v0.1.0 DRY_RUN=1 SKIP_BUILD=1 bash build/ci-release.sh` (needs `zip`).
