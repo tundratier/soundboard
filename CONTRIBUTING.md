@@ -146,7 +146,7 @@ One-time setup on GitHub (no secrets or tokens are needed; the workflow uses the
    workflow itself never pushes.
 
 Tags are not pushed by a plain `git push`: use `git push origin master develop --follow-tags` (or
-`scriptselease.ps1 -Push`). Pushing only a tag does not start the workflow (it runs on pushes to `master`); use the
+`scripts\release.ps1 -Push`). Pushing only a tag does not start the workflow (it runs on pushes to `master`); use the
 manual run for that. `v0.1.0` and `v0.1.1` predate the workflow and therefore have no GitHub release.
 
 The packaging logic lives in `build/ci-release.sh` and can be tried locally without publishing, using the existing exes:
