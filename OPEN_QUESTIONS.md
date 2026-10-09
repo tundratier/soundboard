@@ -44,6 +44,7 @@ microphone and playback paths running, trigger → level at the monitor, web boa
 | API types | Mirrored by hand (`frontend/src/shared/types.ts`), no `tygo` | A generator is not worth it at this size. |
 | Auto-save | Audio settings and boards are saved 0.4-0.5 s after the last change | No "save" button; errors appear as a toast at the bottom. |
 | Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
+| License | MIT (`LICENSE`), copyright holder `tundratier` (the GitHub account) | You asked for MIT. I did not know your legal name, so please put the name you want into `LICENSE`. All dependencies are permissive. |
 
 ## 3. Not implemented (phase 6 / optional)
 
@@ -57,11 +58,9 @@ headphones).
 1. **Bundle VB-Cable?** The license only allows redistribution by agreement; I only built detection + instructions.
    For a purely private project you can of course install it yourself - or should I look at alternatives
    (e.g. the Voicemeeter cable)?
-2. **License** for the repo (you said "as open source as possible"): MIT, Apache-2.0 or GPL? The libraries used
-   (malgo/miniaudio, beep, fsnotify, coder/websocket, systray, go-ole, go-qrcode, nosleep.js) are all permissive.
-3. **Name** of the app - currently simply "Soundboard" (exe, tray, title).
-4. **Optional PIN** for the boards, in case you ever use it on foreign networks?
-5. Should tiles get **hotkeys** later (e.g. F13-F24 for a Stream-Deck-like setup)?
+2. **Name** of the app - currently simply "Soundboard" (exe, tray, title).
+3. **Optional PIN** for the boards, in case you ever use it on foreign networks?
+4. Should tiles get **hotkeys** later (e.g. F13-F24 for a Stream-Deck-like setup)?
 
 ## 5. Multiple boards (decisions)
 
