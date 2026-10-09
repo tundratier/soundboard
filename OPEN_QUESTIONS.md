@@ -43,7 +43,7 @@ microphone and playback paths running, trigger → level at the monitor, web boa
 | Frontend libraries | React, lucide-react (UI icons), nosleep.js (keep the screen on), nothing else. HTML5 drag & drop instead of dnd-kit, plain `fetch` instead of TanStack Query | Few dependencies, enough for this size. HTML5 drag & drop does not work by touch in the admin UI (the admin UI is meant for the desktop; creating a tile also works by click). |
 | API types | Mirrored by hand (`frontend/src/shared/types.ts`), no `tygo` | A generator is not worth it at this size. |
 | Auto-save | Audio settings and boards are saved 0.4-0.5 s after the last change | No "save" button; errors appear as a toast at the bottom. |
-| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English (the very first commit message is the one German exception) | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
+| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
 
 ## 3. Not implemented (phase 6 / optional)
 
