@@ -1,4 +1,4 @@
-// soundboard: local soundboard for Windows – microphone + effects → virtual cable, board in the browser.
+// soundboard: local soundboard for Windows - microphone + effects → virtual cable, board in the browser.
 package main
 
 import (
@@ -23,10 +23,10 @@ import (
 var version = "0.1.0"
 
 func main() {
-	dataFlag := flag.String("data", "", "Datenordner (Standard: ./data neben der exe, falls vorhanden, sonst %APPDATA%\\Soundboard)")
-	portFlag := flag.Int("port", 0, "Port überschreiben")
-	noBrowser := flag.Bool("no-browser", false, "Admin-Seite beim Start nicht öffnen")
-	showVersion := flag.Bool("version", false, "Version ausgeben")
+	dataFlag := flag.String("data", "", "data folder (default: ./data next to the exe if it exists, otherwise %APPDATA%\\Soundboard)")
+	portFlag := flag.Int("port", 0, "override the port")
+	noBrowser := flag.Bool("no-browser", false, "do not open the admin page on first start")
+	showVersion := flag.Bool("version", false, "print the version")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(version)
@@ -35,15 +35,15 @@ func main() {
 
 	dataDir := resolveDataDir(*dataFlag)
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		fatalBox("Datenordner nicht anlegbar: " + err.Error())
+		fatalBox(fmt.Sprintf(uiErrDataFolder, err), "cannot create data folder: "+err.Error())
 	}
 	setupLogging(dataDir)
-	log.Printf("Soundboard %s, Daten in %s", version, dataDir)
+	log.Printf("Soundboard %s, data in %s", version, dataDir)
 
 	cfgPath := filepath.Join(dataDir, "config.json")
 	st, created, err := store.Open(cfgPath)
 	if st == nil {
-		fatalBox("Konfiguration nicht lesbar: " + err.Error())
+		fatalBox(fmt.Sprintf(uiErrConfig, err), "cannot read config: "+err.Error())
 	}
 	if err != nil {
 		log.Printf("config: %v", err)
@@ -54,7 +54,7 @@ func main() {
 	adminURL := fmt.Sprintf("http://localhost:%d/admin", st.Get().Server.Port)
 
 	if !acquireSingleInstance() {
-		log.Printf("läuft bereits – öffne Admin-Seite")
+		log.Printf("already running - opening the admin page")
 		openBrowser(adminURL)
 		return
 	}
@@ -67,23 +67,23 @@ func main() {
 		}
 	})
 	if err != nil {
-		fatalBox("Sound-Ordner: " + err.Error())
+		fatalBox(fmt.Sprintf(uiErrSoundFolder, err), "sound folder: "+err.Error())
 	}
 	if created {
 		seedFirstRun(lib, st)
 	}
 	t0 := time.Now()
 	lib.Scan()
-	log.Printf("library: %d Sounds in %v geladen", len(lib.List()), time.Since(t0).Round(time.Millisecond))
+	log.Printf("library: loaded %d sounds in %v", len(lib.List()), time.Since(t0).Round(time.Millisecond))
 	stopWatch := make(chan struct{})
 	if err := lib.Watch(stopWatch); err != nil {
-		log.Printf("library: Ordner-Überwachung nicht verfügbar: %v", err)
+		log.Printf("library: folder watching unavailable: %v", err)
 	}
 
 	// Audio
 	be, err := miniaudio.New()
 	if err != nil {
-		fatalBox("Audio-System nicht verfügbar: " + err.Error())
+		fatalBox(fmt.Sprintf(uiErrAudioSystem, err), "audio system unavailable: "+err.Error())
 	}
 	eng := audio.NewEngine(be)
 	if created {
@@ -111,7 +111,7 @@ func main() {
 	go func() {
 		if err := <-serveErr; err != nil {
 			log.Printf("server: %v", err)
-			fatalBox("Webserver konnte nicht starten:\n" + err.Error() + "\n\nAnderer Port: soundboard.exe -port 9000")
+			fatalBox(fmt.Sprintf(uiErrWebServer, err), "web server could not start: "+err.Error())
 		}
 	}()
 
@@ -121,7 +121,7 @@ func main() {
 
 	boardURL := fmt.Sprintf("http://localhost:%d/boards", st.Get().Server.Port)
 	runTray(adminURL, boardURL, shutdown) // blocks until "Quit"
-	log.Printf("beendet")
+	log.Printf("exited")
 }
 
 func resolveDataDir(flagVal string) string {
@@ -157,15 +157,16 @@ func setupLogging(dataDir string) {
 }
 
 // seedFirstRun creates an example sound and an example tile so there is something to try right away.
+// Its name and label are user-visible and therefore come from ui_de.go.
 func seedFirstRun(lib *library.Library, st *store.Store) {
-	name := "Testton.wav"
+	name := uiExampleSound
 	if err := library.WriteTestTone(filepath.Join(lib.Dir(), name)); err != nil {
 		log.Printf("seed: %v", err)
 		return
 	}
 	_, err := st.Update(func(c *store.Config) error {
 		c.Boards[0].Tiles = append(c.Boards[0].Tiles, store.Tile{
-			ID: store.NewID(), X: 0, Y: 0, Label: "Testton", Sound: name,
+			ID: store.NewID(), X: 0, Y: 0, Label: uiExampleTileName, Sound: name,
 			Icon: &store.Icon{Kind: "emoji", Value: "🔔"}, Gain: 1, Mode: audio.ModeOneShot, Color: "#4dabf7",
 		})
 		return nil
@@ -177,7 +178,7 @@ func seedFirstRun(lib *library.Library, st *store.Store) {
 
 // autoSelectDevices picks sensible devices on first start:
 // microphone = default capture device, main = CABLE Input (if installed), monitor = default playback device.
-// Otherwise main stays empty – a real loudspeaker would feed the microphone back immediately.
+// Otherwise main stays empty - a real loudspeaker would feed the microphone back immediately.
 func autoSelectDevices(eng *audio.Engine, st *store.Store) {
 	devs, err := eng.Devices()
 	if err != nil {
@@ -201,7 +202,7 @@ func autoSelectDevices(eng *audio.Engine, st *store.Store) {
 	})
 }
 
-// teeLog writes to the log file and – best effort – to stderr. The GUI exe has no valid stderr;
+// teeLog writes to the log file and - best effort - to stderr. The GUI exe has no valid stderr;
 // io.MultiWriter would abort there on the first error.
 type teeLog struct{ file, console io.Writer }
 

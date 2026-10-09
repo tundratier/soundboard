@@ -1,77 +1,80 @@
-# Offene Punkte & getroffene Entscheidungen
+# Open points & decisions taken
 
-Während du weg warst, habe ich Phase 0–5 des Plans umgesetzt. Hier steht, was ich **selbst entschieden** habe
-(zum Gegenlesen) und was **nur du testen/klären kannst**.
+While you were away I implemented phases 0-5 of the plan. This file lists what I **decided on my own** (for you to
+review) and what **only you can test or clarify**.
 
-## 1. Nicht verifiziert – bitte auf deinem Rechner prüfen
+## 1. Not verified - please check on your machine
 
-Der Entwicklungsrechner hat weder `VB-Cable` noch ein Headset; ich konnte nur den Programmablauf prüfen
-(Geräte öffnen, Mikrofon- und Wiedergabepfad laufen, Trigger → Pegel am Monitor, Web-Board per WebSocket).
-**Nie gehört/gemessen wurde:**
+The development machine had neither VB-Cable nor a headset; I could only verify the program flow (opening devices,
+microphone and playback paths running, trigger → level at the monitor, web board via WebSocket).
+**Never listened to or measured:**
 
-- [ ] **Latenz und Knackser** der Mikrofon-Strecke mit echtem Kabel. Der Puffer-Zielwert ist 2 Perioden
-      (≈ 20 ms bei 10 ms Periode) plus Geräte-Puffer, geschätzt 40–60 ms Gesamtlatenz. Falls zu hoch/knackst:
-      Admin → Audio → Erweitert → Puffergröße. Der Drift-Ausgleich ist nur simuliert getestet (±1500 ppm, 60 s,
-      keine Unter-/Überläufe) – ein **1-Stunden-Dauertest** auf echter Hardware steht aus
-      (`dist\spike.exe run <mikro> "CABLE Input" <kopfhörer>` zeigt Unter-/Überläufe und Taktabweichung).
-- [ ] **„Als Standard-Kommunikationsgerät setzen“** (`IPolicyConfig`, Windows-COM). Der Code kompiliert, wurde aber
-      bewusst nicht ausgeführt, weil er Systemeinstellungen ändert. Bitte einmal ausprobieren.
-- [ ] **Tray-Symbol** und Klick auf das Symbol (nur gebaut, nicht angesehen).
-- [ ] **Windows-Ducking:** Ist ein Kommunikationsgerät aktiv, senkt Windows andere Audiostreams ab (auch den
-      Monitor). Ich setze das nicht programmatisch zurück; im Admin steht ein Hinweis (Sound → Kommunikation →
-      „Nichts unternehmen“). Falls das stört, könnte man per `IAudioSessionControl2::SetDuckingPreference` den
-      Opt-out im Stream setzen – miniaudio bietet das nicht, wäre eigener Code.
-- [ ] **Firewall-Dialog** beim ersten Start und Erreichbarkeit vom Handy.
-- [ ] **Antivirus/SmartScreen:** unsignierte Go-exe, kann Fehlalarme auslösen.
+- [ ] **Latency and crackles** of the microphone path with a real cable. The buffer target is 2 periods
+      (≈ 20 ms at a 10 ms period) plus the device buffers, estimated at 40-60 ms total latency. If it is too high or
+      crackles: Admin → Audio → "Erweitert" → buffer size. The drift compensation has only been tested in simulation
+      (±1500 ppm, 60 s, no underruns/overruns) - a **1-hour soak test** on real hardware is still missing
+      (`dist\spike.exe run <mic> "CABLE Input" <headphones>` shows underruns/overruns and clock drift).
+- [ ] **"Als Standard-Kommunikationsgerät setzen"** (set as default communications device; `IPolicyConfig`, Windows
+      COM). The code compiles but was deliberately not executed because it changes system settings. Please try it once.
+- [ ] **Tray icon** and clicking it (built, but never looked at).
+- [ ] **Windows ducking:** while a communications device is active, Windows lowers other audio streams (including the
+      monitor). I do not reset that programmatically; the admin UI shows a hint (Sound → Communications → "Do
+      nothing"). If it bothers you, the opt-out could be set per stream via
+      `IAudioSessionControl2::SetDuckingPreference` - miniaudio does not offer that, so it would be custom code.
+- [ ] **Firewall dialog** on first start and reachability from a phone.
+- [ ] **Antivirus/SmartScreen:** an unsigned Go exe can trigger false positives.
 
-## 2. Entscheidungen, die ich für dich getroffen habe
+## 2. Decisions I took for you
 
-| Thema | Entscheidung | Warum / Alternative |
+| Topic | Decision | Why / alternative |
 |---|---|---|
-| Balance | Echte Balance (der gegenüberliegende Kanal wird leiser, der andere bleibt), kein Constant-Power-Panning | Du hattest „Balance-Regler“ gesagt; bei Stereo-Quellen ist das erwartbarer. Sounds sind intern immer Stereo (Mono wird gespiegelt). |
-| Kachel-Verhalten | `Einmal`, `Neustart`, `Start/Stopp`, `Schleife`; zusätzlich pro Kachel Lautstärke, Farbe | Steuerung nötig, sonst sind Loops/Abbruch nicht möglich. |
-| Board-Zugriff | Ohne PIN, jeder im Netz; Standard `bindLan = true` | Wie gewünscht. Umschaltbar auf „nur localhost“. |
-| Admin | Nur über `http://localhost:<Port>/admin` erreichbar – **nicht** über die LAN-IP des eigenen Rechners | Schutz gegen Zugriff aus dem Netz/DNS-Rebinding. |
-| Port | 8723, änderbar (wirkt nach Neustart) | |
-| Datenordner | `%APPDATA%\Soundboard`, portabel wenn `data\` neben der exe liegt | |
-| Erster Start | Mikrofon = Standard-Mikro, Monitor = Standard-Ausgabe, Main = `CABLE Input` (nur wenn installiert, sonst leer) | Ein echter Lautsprecher als Main würde sofort rückkoppeln. Dazu ein Testton + Beispielkachel. |
-| Rückkopplungsschutz | `CABLE Output` kann nicht als Mikrofon gewählt werden | |
-| Sound-Format | Alles wird beim Laden nach 48 kHz/Stereo/float32 dekodiert und liegt im RAM (≈ 23 MB/Minute); max. 10 Minuten pro Datei | Kein Festplattenzugriff im Audio-Thread. Lange Musik-Dateien sind damit unpraktisch. |
-| Limiter | Harter Limiter bei 0,95, ca. 100 ms Release; Abbruch eines Sounds blendet 5 ms aus | gegen Übersteuern/Knackser |
-| Raster verkleinern | Kacheln außerhalb bleiben gespeichert, sind aber unsichtbar (Hinweis im Admin) | Verhindert Datenverlust beim versehentlichen Verkleinern. |
-| Icons | Emoji (Auswahl + freie Eingabe) oder hochgeladene Bilder (png/jpg/gif/webp/svg, ≤ 2 MB) | Lucide-Icon-Set für Kacheln nicht umgesetzt. |
-| Frontend-Libs | React, lucide-react (UI-Icons), sonst nichts. Drag & Drop per HTML5 statt dnd-kit, Daten per `fetch` statt TanStack Query | Wenig Abhängigkeiten, reicht für den Umfang. HTML5-DnD funktioniert im Admin nicht per Touch (Admin ist für den Desktop gedacht; Kachel anlegen geht auch per Klick). |
-| API-Typen | Von Hand gespiegelt (`frontend/src/shared/types.ts`), kein `tygo` | Ein Generator lohnt sich bei dieser Größe noch nicht. |
-| Auto-Speichern | Audio-Einstellungen und Board speichern 0,4–0,5 s nach der letzten Änderung automatisch | Kein „Speichern“-Knopf; Fehler erscheinen als Hinweis unten. |
-| Versionsverwaltung | `git init` gemacht, **nichts committet** | Du hast keinen Commit verlangt. |
+| Balance | A true balance control (the opposite channel is attenuated, the other stays), not constant-power panning | You said "balance control"; that is what people expect for stereo sources. Sounds are always stereo internally (mono is mirrored). |
+| Tile behavior | `Einmal` (once), `Neustart` (restart), `Start/Stopp` (toggle), `Schleife` (loop); plus volume and color per tile | Needed, otherwise loops/aborting are impossible. |
+| Board access | No PIN, everyone on the network; default `bindLan = true` | As requested. Can be switched to "localhost only". |
+| Admin | Only reachable via `http://localhost:<port>/admin` - **not** via the PC's own LAN IP | Protection against access from the network/DNS rebinding. |
+| Port | 8723, changeable (takes effect after a restart) | |
+| Data folder | `%APPDATA%\Soundboard`, portable if `data\` sits next to the exe | |
+| First start | Microphone = default mic, monitor = default output, main = `CABLE Input` (only if installed, otherwise empty) | A real loudspeaker as main would feed the microphone back immediately. Also creates a test beep and an example tile. |
+| Feedback protection | `CABLE Output` cannot be selected as the microphone | |
+| Sound format | Everything is decoded to 48 kHz/stereo/float32 on load and kept in RAM (≈ 23 MB per minute); max. 10 minutes per file | No disk access on the audio thread. Long music files are impractical. |
+| Limiter | Hard limiter at 0.95, ~100 ms release; aborting a sound fades out over 5 ms | Against overload/clicks |
+| Shrinking the grid | Tiles outside the grid stay stored but are invisible (hint in the admin UI) | Prevents data loss when shrinking by accident. |
+| Icons | Emoji (picker + free input) or uploaded images (png/jpg/gif/webp/svg, ≤ 2 MB) | The Lucide icon set for tiles is not implemented. |
+| Frontend libraries | React, lucide-react (UI icons), nosleep.js (keep the screen on), nothing else. HTML5 drag & drop instead of dnd-kit, plain `fetch` instead of TanStack Query | Few dependencies, enough for this size. HTML5 drag & drop does not work by touch in the admin UI (the admin UI is meant for the desktop; creating a tile also works by click). |
+| API types | Mirrored by hand (`frontend/src/shared/types.ts`), no `tygo` | A generator is not worth it at this size. |
+| Auto-save | Audio settings and boards are saved 0.4-0.5 s after the last change | No "save" button; errors appear as a toast at the bottom. |
+| Language | UI texts are German (frontend; on the Go side tray menu, startup error dialogs and the example tile, all collected in `backend/cmd/soundboard/ui_de.go`); code, comments, logs, API error messages, docs and commit messages are English (the very first commit message is the one German exception) | API errors that reach the UI as toasts therefore appear in English after a German prefix; device status errors have a code that the UI translates. |
 
-## 3. Nicht umgesetzt (Phase 6 / optional)
+## 3. Not implemented (phase 6 / optional)
 
-Globale Hotkeys · Autostart mit Windows · Mikrofon-Ducking während Effekten · Fades pro Kachel ·
-Board duplizieren · Import/Export · natives Fenster (Wails) · PWA-Service-Worker (nur Manifest, Installation als
-„App“ geht, Offline-Betrieb nicht) · Mikrofon-Mithören im Monitor (du wolltest nur Effekte auf den Kopfhörern).
+Global hotkeys · autostart with Windows · microphone ducking while effects play · fades per tile ·
+duplicating a board · import/export · native window (Wails) · PWA service worker (manifest only: installing as an
+"app" works, offline use does not) · listening to the microphone in the monitor (you only wanted effects on the
+headphones).
 
-## 4. Fragen an dich
+## 4. Questions for you
 
-1. **VB-Cable mitliefern?** Die Lizenz erlaubt Weitergabe nur mit Vereinbarung; ich habe nur Erkennung + Anleitung
-   eingebaut. Für ein rein privates Projekt kannst du es natürlich selbst installieren – oder soll ich Alternativen
-   (z. B. Voicemeeter-Kabel) prüfen?
-2. **Lizenz** fürs Repo (du sagtest „maximal Open Source“): MIT, Apache-2.0 oder GPL? Die genutzten Libs
-   (malgo/miniaudio, beep, fsnotify, coder/websocket, systray, go-ole, go-qrcode) sind alle permissiv.
-3. **Name** der App – aktuell einfach „Soundboard“ (exe, Tray, Titel).
-4. **Optionaler PIN** für das Board, falls du es doch mal in fremden Netzen nutzt?
-5. Sollen Kacheln später **Hotkeys** bekommen (z. B. F13–F24 für ein Stream-Deck-artiges Setup)?
+1. **Bundle VB-Cable?** The license only allows redistribution by agreement; I only built detection + instructions.
+   For a purely private project you can of course install it yourself - or should I look at alternatives
+   (e.g. the Voicemeeter cable)?
+2. **License** for the repo (you said "as open source as possible"): MIT, Apache-2.0 or GPL? The libraries used
+   (malgo/miniaudio, beep, fsnotify, coder/websocket, systray, go-ole, go-qrcode, nosleep.js) are all permissive.
+3. **Name** of the app - currently simply "Soundboard" (exe, tray, title).
+4. **Optional PIN** for the boards, in case you ever use it on foreign networks?
+5. Should tiles get **hotkeys** later (e.g. F13-F24 for a Stream-Deck-like setup)?
 
-## 5. Mehrere Boards (Entscheidungen)
+## 5. Multiple boards (decisions)
 
-- **Pfade:** `/boards` ist die Übersicht, `/boards/<pfad>` ein Board. `/` leitet auf `/boards` um (frühere Lesezeichen auf `/`
-  landen also in der Übersicht). Die alte API `GET /api/board` gibt es nicht mehr.
-- **Pfad = Board-ID:** wird beim Anlegen aus dem Namen erzeugt (`Zum Lachen` → `zum-lachen`), bleibt beim Umbenennen
-  stabil und ist separat änderbar (a–z, 0–9, `-`, max. 40 Zeichen). Wer einen Pfad ändert, macht bestehende Lesezeichen/QR-Codes ungültig.
-- **Kachel-IDs sind global eindeutig** (Auslösen und „spielt gerade“ laufen nur über die Kachel-ID); gleiche Rasterpositionen
-  auf verschiedenen Boards sind selbstverständlich erlaubt.
-- **Übersicht:** auch bei nur einem Board eine Übersicht (kein Auto-Weiterleiten) – wer direkt starten will, legt `/boards/<pfad>`
-  als Lesezeichen an.
-- **Migration:** eine `config.json` mit einem einzelnen Board wird beim Start in das neue Format überführt, das Original bleibt als
-  `config.json.v1.bak` liegen. Es gibt höchstens 50 Boards, mindestens eins.
-- Ein Board zu löschen entfernt seine Kacheln, nicht die Sounds. Ein offenes Board auf einem Handy zeigt danach „Dieses Board gibt es nicht (mehr)“.
+- **Paths:** `/boards` is the overview, `/boards/<path>` is one board. `/` redirects to `/boards` (so old bookmarks
+  to `/` land in the overview). The old API `GET /api/board` no longer exists.
+- **Path = board ID:** generated from the name when the board is created (`Zum Lachen` → `zum-lachen`), stays stable
+  when renaming, and can be changed separately (a-z, 0-9, `-`, max. 40 characters). Changing a path invalidates
+  existing bookmarks/QR codes for that board.
+- **Tile IDs are globally unique** (triggering and "currently playing" are keyed by tile ID alone); identical grid
+  positions on different boards are of course fine.
+- **Overview:** shown even when there is only one board (no auto-redirect) - bookmark `/boards/<path>` to start
+  directly.
+- **Migration:** a `config.json` with a single board is converted to the new format on start; the original is kept as
+  `config.json.v1.bak`. There are at most 50 boards, at least one.
+- Deleting a board removes its tiles, not the sounds. A board that is open on a phone then shows "Dieses Board gibt es
+  nicht (mehr)" (this board no longer exists).

@@ -251,7 +251,7 @@ function TileEditor({
         <label>Sound</label>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           <select value={tile.sound} onChange={(e) => onChange({ sound: e.target.value, label: tile.label || e.target.value.replace(/\.[^.]+$/, '') })}>
-            <option value="">– kein Sound –</option>
+            <option value="">- kein Sound -</option>
             {!knownSound && tile.sound && <option value={tile.sound}>{tile.sound} (fehlt)</option>}
             {sounds
               .filter((s) => !s.error)

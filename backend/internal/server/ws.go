@@ -123,7 +123,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		switch m.Type {
 		case "trigger":
 			if !s.trigger(m.Tile) {
-				log.Printf("ws: unbekannte Kachel %q", m.Tile)
+				log.Printf("ws: unknown tile %q", m.Tile)
 			}
 		case "stop":
 			s.d.Engine.Stop(m.Tile)

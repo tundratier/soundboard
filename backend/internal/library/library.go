@@ -69,7 +69,7 @@ func Supported(name string) bool { return extensions[strings.ToLower(filepath.Ex
 func (l *Library) Scan() {
 	files, err := os.ReadDir(l.dir)
 	if err != nil {
-		log.Printf("library: Ordner lesen: %v", err)
+		log.Printf("library: reading folder: %v", err)
 		return
 	}
 	seen := map[string]bool{}
@@ -167,7 +167,7 @@ func SanitizeName(name string) string {
 func (l *Library) Save(name string, r io.Reader) (string, error) {
 	name = SanitizeName(name)
 	if name == "" || !Supported(name) {
-		return "", errors.New("Dateityp nicht unterstützt (erlaubt: wav, mp3, flac, ogg)")
+		return "", errors.New("unsupported file type (allowed: wav, mp3, flac, ogg)")
 	}
 	ext := filepath.Ext(name)
 	base := strings.TrimSuffix(name, ext)
@@ -202,7 +202,7 @@ func (l *Library) Save(name string, r io.Reader) (string, error) {
 // Delete removes a sound including its file.
 func (l *Library) Delete(name string) error {
 	if name != SanitizeName(name) || !Supported(name) {
-		return errors.New("ungültiger Name")
+		return errors.New("invalid name")
 	}
 	if err := os.Remove(filepath.Join(l.dir, name)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -296,16 +296,16 @@ func Decode(path string) (*audio.Sound, error) {
 		s, format, err = vorbis.Decode(f)
 	default:
 		f.Close()
-		return nil, errors.New("Dateityp nicht unterstützt")
+		return nil, errors.New("unsupported file type")
 	}
 	if err != nil {
 		f.Close()
-		return nil, fmt.Errorf("dekodieren: %w", err)
+		return nil, fmt.Errorf("decode: %w", err)
 	}
 	defer s.Close() // also closes f
 
 	if format.SampleRate <= 0 {
-		return nil, errors.New("ungültige Samplerate")
+		return nil, errors.New("invalid sample rate")
 	}
 	var st beep.Streamer = s
 	if int(format.SampleRate) != audio.SampleRate {
@@ -320,17 +320,17 @@ func Decode(path string) (*audio.Sound, error) {
 			data = append(data, clamp(buf[i][0]), clamp(buf[i][1]))
 		}
 		if len(data)/audio.Channels > maxFrames {
-			return nil, fmt.Errorf("zu lang (max. %d Minuten)", maxFrames/audio.SampleRate/60)
+			return nil, fmt.Errorf("too long (max. %d minutes)", maxFrames/audio.SampleRate/60)
 		}
 		if !ok {
 			break
 		}
 	}
 	if err := st.Err(); err != nil {
-		return nil, fmt.Errorf("dekodieren: %w", err)
+		return nil, fmt.Errorf("decode: %w", err)
 	}
 	if len(data) == 0 {
-		return nil, errors.New("leere Datei")
+		return nil, errors.New("empty file")
 	}
 	return &audio.Sound{Data: data, Frames: len(data) / audio.Channels}, nil
 }

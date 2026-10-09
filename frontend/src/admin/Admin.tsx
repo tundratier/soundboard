@@ -70,7 +70,7 @@ export function Admin() {
   }, [])
 
   useEffect(() => {
-    document.title = 'Verwaltung – Soundboard'
+    document.title = 'Verwaltung - Soundboard'
   }, [])
 
   useDebouncedSave(audio, (a) => api.putAudio(a).catch((e) => notify(`Audio-Einstellungen: ${e.message}`, true)), 400)
@@ -111,7 +111,7 @@ export function Admin() {
   return (
     <div className="admin">
       <header className="admin-head">
-        <h1>Soundboard – Verwaltung</h1>
+        <h1>Soundboard - Verwaltung</h1>
         <span className="note">v{state.version}</span>
         <div className="grow" />
         <a className="btn" href="/boards" target="_blank" rel="noreferrer">
@@ -168,12 +168,28 @@ export function Admin() {
 
 // ---------- Audio ----------
 
+/** German UI text for the backend's status error codes; unknown codes fall back to the backend's message. */
+function roleErrorText(role: RoleStatus): string {
+  switch (role.errorCode) {
+    case 'device_missing':
+      return 'Gerät nicht gefunden (abgesteckt?)'
+    case 'feedback':
+      return 'Rückkopplung: „CABLE Output“ ist das Ausgabe-Ende dieser App und kann nicht als Mikrofon dienen'
+    case 'device_stopped':
+      return 'Gerät gestoppt, versuche erneut zu verbinden'
+    case 'open_failed':
+      return `Gerät konnte nicht geöffnet werden: ${role.error ?? ''}`
+    default:
+      return role.error || 'startet …'
+  }
+}
+
 function RoleLine({ role, configured }: { role: RoleStatus; configured: boolean }) {
   if (!configured) return <div className="status-line"><span className="dot" /> <span className="dim">nicht gewählt</span></div>
   if (role.running) return <div className="status-line"><span className="dot ok" /> läuft</div>
   return (
     <div className="status-line">
-      <span className="dot bad" /> <span className="note bad">{role.error || 'startet …'}</span>
+      <span className="dot bad" /> <span className="note bad">{roleErrorText(role)}</span>
     </div>
   )
 }
@@ -224,15 +240,15 @@ function AudioPanel({
       <div className="field">
         <label>
           <span>
-            <Mic size={13} /> Eingang – Mikrofon
+            <Mic size={13} /> Eingang - Mikrofon
           </span>
         </label>
         <select value={audio.inputDeviceId} onChange={(e) => set({ inputDeviceId: e.target.value })}>
-          <option value="">– kein Mikrofon –</option>
+          <option value="">- kein Mikrofon -</option>
           {missing(audio.inputDeviceId, capture) && <option value={audio.inputDeviceId}>(Gerät nicht verfügbar)</option>}
           {capture.map((d) => (
             <option key={d.id} value={d.id} disabled={d.id === cableOutId}>
-              {deviceLabel(d, d.id === cableOutId ? ' – Ausgang dieser App, nicht wählbar' : '')}
+              {deviceLabel(d, d.id === cableOutId ? ' - Ausgang dieser App, nicht wählbar' : '')}
             </option>
           ))}
         </select>
@@ -243,15 +259,15 @@ function AudioPanel({
       <div className="field">
         <label>
           <span>
-            <Headphones size={13} /> Hauptausgang – Mikrofon + Effekte
+            <Headphones size={13} /> Hauptausgang - Mikrofon + Effekte
           </span>
         </label>
         <select value={audio.mainDeviceId} onChange={(e) => set({ mainDeviceId: e.target.value })}>
-          <option value="">– kein Ausgang –</option>
+          <option value="">- kein Ausgang -</option>
           {missing(audio.mainDeviceId, playback) && <option value={audio.mainDeviceId}>(Gerät nicht verfügbar)</option>}
           {playback.map((d) => (
             <option key={d.id} value={d.id}>
-              {deviceLabel(d, d.id === cableInId ? ' – empfohlen (virtuelles Kabel)' : '')}
+              {deviceLabel(d, d.id === cableInId ? ' - empfohlen (virtuelles Kabel)' : '')}
             </option>
           ))}
         </select>
@@ -267,11 +283,11 @@ function AudioPanel({
       <div className="field">
         <label>
           <span>
-            <Monitor size={13} /> Monitor – nur Effekte (Kopfhörer)
+            <Monitor size={13} /> Monitor - nur Effekte (Kopfhörer)
           </span>
         </label>
         <select value={audio.monitorDeviceId} onChange={(e) => set({ monitorDeviceId: e.target.value })}>
-          <option value="">– kein Monitor –</option>
+          <option value="">- kein Monitor -</option>
           {missing(audio.monitorDeviceId, playback) && <option value={audio.monitorDeviceId}>(Gerät nicht verfügbar)</option>}
           {playback.map((d) => (
             <option key={d.id} value={d.id}>
@@ -281,10 +297,10 @@ function AudioPanel({
         </select>
         <RoleLine role={status.monitor} configured={audio.monitorDeviceId !== ''} />
         <Meter value={status.monitorPeak} label="Pegel Monitor" />
-        <div className="note">Die Effekte laufen zusätzlich zu dem, was Windows sonst auf diesem Gerät ausgibt – Windows mischt das selbst.</div>
+        <div className="note">Die Effekte laufen zusätzlich zu dem, was Windows sonst auf diesem Gerät ausgibt - Windows mischt das selbst.</div>
         {audio.monitorDeviceId !== '' && audio.monitorDeviceId === audio.mainDeviceId && (
           <div className="note warn">
-            <TriangleAlert size={12} /> Hauptausgang und Monitor sind dasselbe Gerät – die Effekte laufen doppelt.
+            <TriangleAlert size={12} /> Hauptausgang und Monitor sind dasselbe Gerät - die Effekte laufen doppelt.
           </div>
         )}
       </div>
@@ -356,10 +372,10 @@ function WindowsPanel({ state, notify }: { state: AdminState; notify: Notify }) 
       <div className="field">
         <label>Aufnahmegerät, das Windows als Standard nutzen soll</label>
         <select value={effective} onChange={(e) => setTarget(e.target.value)}>
-          <option value="">–</option>
+          <option value="">-</option>
           {capture.map((d) => (
             <option key={d.id} value={d.id}>
-              {deviceLabel(d, d.id === state.cable.outputId ? ' – Ausgang dieser App' : '')}
+              {deviceLabel(d, d.id === state.cable.outputId ? ' - Ausgang dieser App' : '')}
             </option>
           ))}
         </select>
@@ -420,7 +436,7 @@ function NetworkPanel({
               </code>
             ))}
             <div className="note" style={{ marginTop: 6 }}>
-              Jeder im Netz kann Sounds auslösen (kein Passwort). Beim ersten Start fragt die Windows-Firewall – „Privates Netzwerk“ zulassen.
+              Jeder im Netz kann Sounds auslösen (kein Passwort). Beim ersten Start fragt die Windows-Firewall - „Privates Netzwerk“ zulassen.
             </div>
           </div>
         </div>

@@ -34,7 +34,7 @@ type fakeBackend struct {
 
 func (f *fakeBackend) Devices() ([]audio.DeviceInfo, error) {
 	return []audio.DeviceInfo{
-		{ID: "spk", Name: "Lautsprecher", Kind: audio.KindPlayback, IsDefault: true},
+		{ID: "spk", Name: "Speaker", Kind: audio.KindPlayback, IsDefault: true},
 		{ID: "ci", Name: "CABLE Input (VB-Audio Virtual Cable)", Kind: audio.KindPlayback},
 		{ID: "co", Name: "CABLE Output (VB-Audio Virtual Cable)", Kind: audio.KindCapture},
 	}, nil
@@ -69,13 +69,13 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	dir := t.TempDir()
 	lib, _ := library.New(filepath.Join(dir, "sounds"), nil)
-	if err := library.WriteTestTone(filepath.Join(dir, "sounds", "ton.wav")); err != nil {
+	if err := library.WriteTestTone(filepath.Join(dir, "sounds", "tone.wav")); err != nil {
 		t.Fatal(err)
 	}
 	lib.Scan()
 	st, _, _ := store.Open(filepath.Join(dir, "config.json"))
 	st.Update(func(c *store.Config) error {
-		c.Boards[0].Tiles = []store.Tile{{ID: "t1", X: 0, Y: 0, Sound: "ton.wav", Gain: 1, Mode: audio.ModeOneShot}, {ID: "t2", X: 1, Y: 0, Sound: "weg.wav", Gain: 1}}
+		c.Boards[0].Tiles = []store.Tile{{ID: "t1", X: 0, Y: 0, Sound: "tone.wav", Gain: 1, Mode: audio.ModeOneShot}, {ID: "t2", X: 1, Y: 0, Sound: "missing.wav", Gain: 1}}
 		return nil
 	})
 	fb := &fakeBackend{}
@@ -108,21 +108,21 @@ func TestAdminGuard(t *testing.T) {
 	e := newEnv(t)
 	// Foreign IP
 	if w := e.adminReq("GET", "/api/admin/state", nil, func(r *http.Request) { r.RemoteAddr = "192.168.1.50:4000" }); w.Code != 403 {
-		t.Errorf("LAN-Client: %d", w.Code)
+		t.Errorf("LAN client: %d", w.Code)
 	}
 	// DNS rebinding: loopback IP, but foreign Host
 	if w := e.adminReq("GET", "/api/admin/state", nil, func(r *http.Request) { r.Host = "evil.example:8723" }); w.Code != 403 {
-		t.Errorf("fremder Host: %d", w.Code)
+		t.Errorf("foreign host: %d", w.Code)
 	}
 	// CSRF: mutating request without header
 	if w := e.adminReq("PUT", "/api/admin/boards", strings.NewReader("[]"), func(r *http.Request) { r.Header.Del("X-Soundboard") }); w.Code != 403 {
-		t.Errorf("ohne Header: %d", w.Code)
+		t.Errorf("without header: %d", w.Code)
 	}
 	if w := e.adminReq("GET", "/admin", nil, func(r *http.Request) { r.RemoteAddr = "10.0.0.2:1" }); w.Code != 403 {
-		t.Errorf("/admin aus dem LAN: %d", w.Code)
+		t.Errorf("/admin from the LAN: %d", w.Code)
 	}
 	if w := e.adminReq("GET", "/admin", nil); w.Code != 200 || !strings.Contains(w.Body.String(), "app") {
-		t.Errorf("/admin lokal: %d", w.Code)
+		t.Errorf("/admin locally: %d", w.Code)
 	}
 	// Board is open
 	resp, err := http.Get(e.srv.URL + "/api/boards/main")
@@ -135,7 +135,7 @@ func TestAdminGuard(t *testing.T) {
 		t.Errorf("Index: %s", b)
 	}
 	if resp, _ = http.Get(e.srv.URL + "/../config.json"); resp.StatusCode == 200 {
-		t.Error("Pfad-Traversal")
+		t.Error("path traversal")
 	}
 }
 
@@ -209,30 +209,30 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 	tone := filepath.Join(e.dir, "up.wav")
 	library.WriteTestTone(tone)
 	f, _ := os.Open(tone)
-	fw, _ := mw.CreateFormFile("file", "Neuer Sound.wav")
+	fw, _ := mw.CreateFormFile("file", "New Sound.wav")
 	io.Copy(fw, f)
 	f.Close()
-	fw, _ = mw.CreateFormFile("file", "boese.exe")
+	fw, _ = mw.CreateFormFile("file", "evil.exe")
 	fw.Write([]byte("MZ"))
 	mw.Close()
 	w := e.adminReq("POST", "/api/admin/sounds", &buf, func(r *http.Request) { r.Header.Set("Content-Type", mw.FormDataContentType()) })
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "Neuer Sound.wav") || !strings.Contains(w.Body.String(), "boese.exe") {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "New Sound.wav") || !strings.Contains(w.Body.String(), "evil.exe") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
-	if e.lib.Get("Neuer Sound.wav") == nil {
-		t.Fatal("Upload nicht geladen")
+	if e.lib.Get("New Sound.wav") == nil {
+		t.Fatal("upload not loaded")
 	}
 
 	// Save boards: invalid → 400, valid → 200
 	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[{"name":"X","cols":0,"rows":2,"tiles":[]}]`))
 	if w.Code != 400 {
-		t.Fatalf("ungültiges Raster: %d", w.Code)
+		t.Fatalf("invalid grid: %d", w.Code)
 	}
 	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[]`))
 	if w.Code != 400 {
-		t.Fatalf("leere Board-Liste: %d", w.Code)
+		t.Fatalf("empty board list: %d", w.Code)
 	}
-	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[{"name":"X","cols":5,"rows":2,"tiles":[{"x":0,"y":0,"sound":"ton.wav","pan":-1,"gain":1,"mode":"toggle"}]}]`))
+	w = e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[{"name":"X","cols":5,"rows":2,"tiles":[{"x":0,"y":0,"sound":"tone.wav","pan":-1,"gain":1,"mode":"toggle"}]}]`))
 	if b := e.st.Get().Boards[0]; w.Code != 200 || b.Cols != 5 || b.ID != "x" || b.Tiles[0].ID == "" {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
@@ -242,7 +242,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 	if w.Code != 204 || e.plat.id != "co" || e.plat.role != "communications" {
 		t.Fatalf("%d %+v", w.Code, e.plat)
 	}
-	w = e.adminReq("POST", "/api/admin/default-device", strings.NewReader(`{"deviceId":"unbekannt"}`))
+	w = e.adminReq("POST", "/api/admin/default-device", strings.NewReader(`{"deviceId":"unknown"}`))
 	if w.Code != 404 {
 		t.Fatalf("%d", w.Code)
 	}
@@ -262,7 +262,7 @@ func TestAdminUploadBoardAndDefaultDevice(t *testing.T) {
 	}
 
 	// Preview
-	w = e.adminReq("POST", "/api/admin/preview", strings.NewReader(`{"sound":"ton.wav","gain":1,"pan":0}`))
+	w = e.adminReq("POST", "/api/admin/preview", strings.NewReader(`{"sound":"tone.wav","gain":1,"pan":0}`))
 	if w.Code != 204 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
@@ -277,20 +277,20 @@ func TestIconUploadAndServe(t *testing.T) {
 	e := newEnv(t)
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	fw, _ := mw.CreateFormFile("file", "../lampe.svg")
+	fw, _ := mw.CreateFormFile("file", "../lamp.svg")
 	fw.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`))
 	mw.Close()
 	w := e.adminReq("POST", "/api/admin/icons", &buf, func(r *http.Request) { r.Header.Set("Content-Type", mw.FormDataContentType()) })
 	if w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
 	}
-	resp, _ := http.Get(e.srv.URL + "/icons/lampe.svg")
+	resp, _ := http.Get(e.srv.URL + "/icons/lamp.svg")
 	if resp.StatusCode != 200 || resp.Header.Get("Content-Security-Policy") != "sandbox" {
 		t.Fatalf("%d %v", resp.StatusCode, resp.Header)
 	}
 	resp, _ = http.Get(e.srv.URL + "/icons/..%2Fconfig.json")
 	if resp.StatusCode == 200 {
-		t.Fatal("Traversal")
+		t.Fatal("icon path traversal")
 	}
 }
 
@@ -298,8 +298,8 @@ func TestMultipleBoardsRoutes(t *testing.T) {
 	e := newEnv(t)
 	// a second board with its own tile; tile positions may repeat across boards
 	w := e.adminReq("PUT", "/api/admin/boards", strings.NewReader(`[
-		{"id":"main","name":"Soundboard","cols":4,"rows":3,"tiles":[{"id":"t1","x":0,"y":0,"sound":"ton.wav","gain":1,"mode":"oneshot"}]},
-		{"name":"Zum Lachen","cols":2,"rows":2,"tiles":[{"id":"l1","x":0,"y":0,"sound":"ton.wav","gain":1,"color":"#ff0000","icon":{"kind":"emoji","value":"😂"}},{"id":"far","x":5,"y":5,"sound":"ton.wav","gain":1}]}
+		{"id":"main","name":"Soundboard","cols":4,"rows":3,"tiles":[{"id":"t1","x":0,"y":0,"sound":"tone.wav","gain":1,"mode":"oneshot"}]},
+		{"name":"Funny Sounds","cols":2,"rows":2,"tiles":[{"id":"l1","x":0,"y":0,"sound":"tone.wav","gain":1,"color":"#ff0000","icon":{"kind":"emoji","value":"😂"}},{"id":"far","x":5,"y":5,"sound":"tone.wav","gain":1}]}
 	]`))
 	if w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
@@ -312,7 +312,7 @@ func TestMultipleBoardsRoutes(t *testing.T) {
 	}
 	var sums []boardSummary
 	json.NewDecoder(resp.Body).Decode(&sums)
-	if len(sums) != 2 || sums[0].ID != "main" || sums[1].ID != "zum-lachen" || sums[1].Name != "Zum Lachen" {
+	if len(sums) != 2 || sums[0].ID != "main" || sums[1].ID != "funny-sounds" || sums[1].Name != "Funny Sounds" {
 		t.Fatalf("%+v", sums)
 	}
 	if p := sums[1].Tiles; len(p) != 1 || p[0].Color != "#ff0000" || p[0].Icon == nil || p[0].Icon.Value != "😂" {
@@ -320,13 +320,13 @@ func TestMultipleBoardsRoutes(t *testing.T) {
 	}
 
 	// single board by ID
-	resp, _ = http.Get(e.srv.URL + "/api/boards/zum-lachen")
+	resp, _ = http.Get(e.srv.URL + "/api/boards/funny-sounds")
 	var br boardResp
 	json.NewDecoder(resp.Body).Decode(&br)
 	if resp.StatusCode != 200 || br.Board.Cols != 2 || len(br.Board.Tiles) != 2 {
 		t.Fatalf("%d %+v", resp.StatusCode, br)
 	}
-	if resp, _ = http.Get(e.srv.URL + "/api/boards/gibt-es-nicht"); resp.StatusCode != 404 {
+	if resp, _ = http.Get(e.srv.URL + "/api/boards/does-not-exist"); resp.StatusCode != 404 {
 		t.Fatalf("unknown board: %d", resp.StatusCode)
 	}
 
@@ -341,7 +341,7 @@ func TestMultipleBoardsRoutes(t *testing.T) {
 	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != "/boards" {
 		t.Fatalf("root: %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
-	for _, p := range []string{"/boards", "/boards/", "/boards/zum-lachen", "/boards/gibt-es-nicht"} {
+	for _, p := range []string{"/boards", "/boards/", "/boards/funny-sounds", "/boards/does-not-exist"} {
 		resp, _ = http.Get(e.srv.URL + p)
 		b, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode != 200 || !strings.Contains(string(b), "app") {

@@ -29,7 +29,7 @@ func New() (*Backend, error) {
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("miniaudio-Kontext: %w", err)
+		return nil, fmt.Errorf("miniaudio context: %w", err)
 	}
 	return &Backend{ctx: ctx}, nil
 }
@@ -76,7 +76,7 @@ func (b *Backend) Devices() ([]audio.DeviceInfo, error) {
 	}{{malgo.Capture, audio.KindCapture}, {malgo.Playback, audio.KindPlayback}} {
 		devs, err := b.ctx.Devices(k.t)
 		if err != nil {
-			return nil, fmt.Errorf("Geräteliste (%s): %w", k.kind, err)
+			return nil, fmt.Errorf("device list (%s): %w", k.kind, err)
 		}
 		for i := range devs {
 			out = append(out, audio.DeviceInfo{

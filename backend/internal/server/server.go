@@ -73,11 +73,11 @@ func (s *Server) Run() error {
 	addr := net.JoinHostPort(host, fmt.Sprint(cfg.Port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("Port %d belegt? %w", cfg.Port, err)
+		return fmt.Errorf("port %d in use? %w", cfg.Port, err)
 	}
 	s.srv = &http.Server{Handler: s.mux, ReadHeaderTimeout: 10 * time.Second}
 	go s.pumpEvents()
-	log.Printf("server: lauscht auf %s", ln.Addr())
+	log.Printf("server: listening on %s", ln.Addr())
 	if err := s.srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -144,7 +144,7 @@ func (s *Server) admin(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
 		if ip := net.ParseIP(host); err != nil || ip == nil || !ip.IsLoopback() {
-			httpErr(w, 403, "Admin ist nur auf diesem Rechner (localhost) erreichbar")
+			httpErr(w, 403, "admin is only reachable from this computer (localhost)")
 			return
 		}
 		hh := r.Host
@@ -154,11 +154,11 @@ func (s *Server) admin(h http.HandlerFunc) http.HandlerFunc {
 		switch strings.Trim(strings.ToLower(hh), "[]") {
 		case "localhost", "127.0.0.1", "::1":
 		default:
-			httpErr(w, 403, "Admin nur über http://localhost:<Port>/admin erreichbar")
+			httpErr(w, 403, "admin is only reachable via http://localhost:<port>/admin")
 			return
 		}
 		if r.Method != http.MethodGet && r.Header.Get("X-Soundboard") == "" {
-			httpErr(w, 403, "X-Soundboard-Header fehlt")
+			httpErr(w, 403, "X-Soundboard header missing")
 			return
 		}
 		h(w, r)
@@ -182,7 +182,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<20) // the board list can hold up to 50 boards of 12×12 tiles
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(v); err != nil {
-		httpErr(w, 400, "ungültiges JSON: "+err.Error())
+		httpErr(w, 400, "invalid JSON: "+err.Error())
 		return false
 	}
 	return true
@@ -209,7 +209,7 @@ func (s *Server) boardResp(b store.Board) boardResp {
 func (s *Server) getBoard(w http.ResponseWriter, r *http.Request) {
 	b, ok := s.d.Store.Get().Board(r.PathValue("id"))
 	if !ok {
-		httpErr(w, 404, "Board nicht gefunden")
+		httpErr(w, 404, "board not found")
 		return
 	}
 	writeJSON(w, 200, s.boardResp(b))
@@ -258,7 +258,7 @@ func (s *Server) trigger(id string) bool {
 
 func (s *Server) postTrigger(w http.ResponseWriter, r *http.Request) {
 	if !s.trigger(r.PathValue("tile")) {
-		httpErr(w, 404, "Kachel unbekannt")
+		httpErr(w, 404, "tile not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -469,7 +469,7 @@ func uploadFiles(w http.ResponseWriter, r *http.Request, limit int64, save func(
 	r.Body = http.MaxBytesReader(w, r.Body, limit*20)
 	mr, err := r.MultipartReader()
 	if err != nil {
-		httpErr(w, 400, "multipart erwartet")
+		httpErr(w, 400, "multipart expected")
 		return
 	}
 	saved := []string{}
@@ -533,7 +533,7 @@ func (s *Server) postPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	snd := s.d.Lib.Get(req.Sound)
 	if snd == nil {
-		httpErr(w, 404, "Sound nicht gefunden oder defekt")
+		httpErr(w, 404, "sound not found or broken")
 		return
 	}
 	if req.Gain == 0 {
@@ -553,7 +553,7 @@ func (s *Server) uploadIcon(w http.ResponseWriter, r *http.Request) {
 	uploadFiles(w, r, maxIconBytes, func(name string, rd io.Reader) (string, error) {
 		name = library.SanitizeName(name)
 		if name == "" || !iconExt(name) {
-			return "", errors.New("Dateityp nicht unterstützt (png, jpg, gif, webp, svg)")
+			return "", errors.New("unsupported file type (png, jpg, gif, webp, svg)")
 		}
 		f, err := os.CreateTemp(s.d.IconsDir, ".icon-*.part")
 		if err != nil {
@@ -579,7 +579,7 @@ func (s *Server) uploadIcon(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteIcon(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	if name != library.SanitizeName(name) || !iconExt(name) {
-		httpErr(w, 400, "ungültiger Name")
+		httpErr(w, 400, "invalid name")
 		return
 	}
 	if err := os.Remove(filepath.Join(s.d.IconsDir, name)); err != nil && !os.IsNotExist(err) {
@@ -601,7 +601,7 @@ func (s *Server) postDefaultDevice(w http.ResponseWriter, r *http.Request) {
 		req.Role = "communications"
 	}
 	if req.Role != "communications" && req.Role != "all" {
-		httpErr(w, 400, "role: communications oder all")
+		httpErr(w, 400, "role: communications or all")
 		return
 	}
 	devs, _ := s.d.Engine.Devices()
@@ -612,11 +612,11 @@ func (s *Server) postDefaultDevice(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !known {
-		httpErr(w, 404, "Gerät nicht gefunden")
+		httpErr(w, 404, "device not found")
 		return
 	}
 	if s.d.Platform == nil {
-		httpErr(w, 501, "auf dieser Plattform nicht verfügbar")
+		httpErr(w, 501, "not available on this platform")
 		return
 	}
 	if err := s.d.Platform.SetDefaultDevice(req.DeviceID, req.Role); err != nil {
@@ -629,7 +629,7 @@ func (s *Server) postDefaultDevice(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getQR(w http.ResponseWriter, r *http.Request) {
 	text := r.URL.Query().Get("text")
 	if text == "" || len(text) > 300 {
-		httpErr(w, 400, "text fehlt oder zu lang")
+		httpErr(w, 400, "text missing or too long")
 		return
 	}
 	png, err := qrcode.Encode(text, qrcode.Medium, 256)

@@ -30,7 +30,7 @@ func TestStoreRoundTripAndValidation(t *testing.T) {
 		t.Fatalf("%+v", b)
 	}
 	if b.Tiles[0].Pan != 1 || b.Tiles[0].Gain != 0 || b.Tiles[0].Mode != "oneshot" {
-		t.Fatalf("Clamping/Default fehlt: %+v", b.Tiles[0])
+		t.Fatalf("clamping/default missing: %+v", b.Tiles[0])
 	}
 
 	// duplicate position is rejected, previous state is kept
@@ -39,26 +39,26 @@ func TestStoreRoundTripAndValidation(t *testing.T) {
 		return nil
 	})
 	if err == nil {
-		t.Fatal("doppelte Position akzeptiert")
+		t.Fatal("duplicate position accepted")
 	}
 	if s2.Get().Boards[0].Tiles[1].X != 1 {
-		t.Fatal("fehlgeschlagenes Update hat den Stand verändert")
+		t.Fatal("failed update changed the state")
 	}
 	_, err = s2.Update(func(c *Config) error { c.Boards[0].Cols = 99; return nil })
 	if err == nil {
-		t.Fatal("Raster 99 akzeptiert")
+		t.Fatal("grid 99 accepted")
 	}
 }
 
 func TestStoreBrokenFileIsBackedUp(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	os.WriteFile(path, []byte("{kaputt"), 0o644)
+	os.WriteFile(path, []byte("{broken"), 0o644)
 	s, created, err := Open(path)
 	if err == nil || !created || s == nil {
 		t.Fatalf("err=%v created=%v", err, created)
 	}
 	if _, err := os.Stat(path + ".broken"); err != nil {
-		t.Fatal("defekte Datei nicht gesichert")
+		t.Fatal("corrupt file was not backed up")
 	}
 }
 
@@ -97,27 +97,27 @@ func TestMultipleBoards(t *testing.T) {
 	// new boards get an ID derived from the name, unique even for equal names
 	c, err := s.Update(func(c *Config) error {
 		c.Boards = append(c.Boards,
-			Board{Name: "Lustig", Cols: 3, Rows: 3, Tiles: []Tile{{ID: "t1", Sound: "a.wav"}}},
-			Board{Name: "Lustig", Cols: 2, Rows: 2},
+			Board{Name: "Funny", Cols: 3, Rows: 3, Tiles: []Tile{{ID: "t1", Sound: "a.wav"}}},
+			Board{Name: "Funny", Cols: 2, Rows: 2},
 		)
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := []string{c.Boards[1].ID, c.Boards[2].ID}; got[0] != "lustig" || got[1] != "lustig-2" {
+	if got := []string{c.Boards[1].ID, c.Boards[2].ID}; got[0] != "funny" || got[1] != "funny-2" {
 		t.Fatalf("IDs: %v", got)
 	}
-	if b, ok := c.Board("lustig"); !ok || b.Name != "Lustig" {
-		t.Fatal("Board() findet nichts")
+	if b, ok := c.Board("funny"); !ok || b.Name != "Funny" {
+		t.Fatal("Board() finds nothing")
 	}
 	if tile, ok := c.Tile("t1"); !ok || tile.Sound != "a.wav" {
-		t.Fatal("Tile() sucht nicht über alle Boards")
+		t.Fatal("Tile() does not search all boards")
 	}
 
 	bad := map[string]func(*Config){
-		"duplicate board ID":    func(c *Config) { c.Boards[2].ID = "lustig" },
-		"invalid board ID":      func(c *Config) { c.Boards[2].ID = "Ungültig/Pfad" },
+		"duplicate board ID":    func(c *Config) { c.Boards[2].ID = "funny" },
+		"invalid board ID":      func(c *Config) { c.Boards[2].ID = "Invalid/Path" },
 		"no boards":             func(c *Config) { c.Boards = nil },
 		"duplicate tile ID":     func(c *Config) { c.Boards[2].Tiles = []Tile{{ID: "t1"}} },
 		"empty grid in board 2": func(c *Config) { c.Boards[2].Rows = 0 },
@@ -147,7 +147,7 @@ func TestMigrationFromV1(t *testing.T) {
   "version": 1,
   "audio": {"inputDeviceId": "mic", "mainDeviceId": "main", "monitorDeviceId": "mon", "micGain": 1, "fxGainMain": 1, "fxGainMonitor": 1, "periodMs": 10},
   "server": {"port": 9000, "bindLan": false},
-  "board": {"name": "Mein Board", "cols": 5, "rows": 2, "tiles": [{"id": "abc", "x": 1, "y": 1, "sound": "x.wav", "pan": 0, "gain": 1, "mode": "toggle"}]}
+  "board": {"name": "My Board", "cols": 5, "rows": 2, "tiles": [{"id": "abc", "x": 1, "y": 1, "sound": "x.wav", "pan": 0, "gain": 1, "mode": "toggle"}]}
 }`
 	if err := os.WriteFile(path, []byte(v1), 0o644); err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func TestMigrationFromV1(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 	b := c.Boards[0]
-	if b.ID != "mein-board" || b.Name != "Mein Board" || b.Cols != 5 || len(b.Tiles) != 1 || b.Tiles[0].ID != "abc" || b.Tiles[0].Mode != "toggle" {
+	if b.ID != "my-board" || b.Name != "My Board" || b.Cols != 5 || len(b.Tiles) != 1 || b.Tiles[0].ID != "abc" || b.Tiles[0].Mode != "toggle" {
 		t.Fatalf("board not migrated: %+v", b)
 	}
 	if c.Audio.InputID != "mic" || c.Server.Port != 9000 || c.Server.BindLAN {
@@ -177,7 +177,7 @@ func TestMigrationFromV1(t *testing.T) {
 		t.Fatalf("migrated file still in the old layout:\n%s", raw)
 	}
 	s2, _, err := Open(path)
-	if err != nil || s2.Get().Boards[0].ID != "mein-board" {
+	if err != nil || s2.Get().Boards[0].ID != "my-board" {
 		t.Fatalf("reopen: %v", err)
 	}
 }

@@ -5,9 +5,9 @@ import { useKeepAwake } from './useKeepAwake'
 export function KeepAwakeButton() {
   const { wanted, active, toggle } = useKeepAwake()
   const title = !wanted
-    ? 'Display darf ausgehen – antippen, um es wach zu halten'
+    ? 'Display darf ausgehen - antippen, um es wach zu halten'
     : active
-      ? 'Display bleibt an – antippen zum Ausschalten'
+      ? 'Display bleibt an - antippen zum Ausschalten'
       : 'Display wird beim nächsten Antippen wach gehalten'
   return (
     <button className={`btn icon${active ? ' active' : ''}`} onClick={toggle} title={title}>

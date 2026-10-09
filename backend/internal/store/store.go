@@ -147,10 +147,10 @@ func Open(path string) (s *Store, created bool, err error) {
 		// Back up a broken file instead of overwriting it.
 		_ = os.Rename(path, path+".broken")
 		s.cfg = Default()
-		return s, true, fmt.Errorf("config.json defekt (gesichert als .broken): %w", err)
+		return s, true, fmt.Errorf("config.json is corrupt (backed up as .broken): %w", err)
 	}
 	if file.Version > CurrentVersion {
-		return nil, false, fmt.Errorf("config.json stammt aus einer neueren Version (%d)", file.Version)
+		return nil, false, fmt.Errorf("config.json comes from a newer version (%d)", file.Version)
 	}
 	s.cfg = file.Config
 	migrated := file.Version < CurrentVersion
@@ -164,15 +164,15 @@ func Open(path string) (s *Store, created bool, err error) {
 	}
 	s.cfg.Version = CurrentVersion
 	if err := Validate(&s.cfg); err != nil {
-		return s, false, fmt.Errorf("config.json ungültig: %w", err)
+		return s, false, fmt.Errorf("config.json is invalid: %w", err)
 	}
 	if migrated {
 		// Keep the old file next to the migrated one.
 		if err := os.WriteFile(path+".v1.bak", b, 0o644); err != nil {
-			return s, false, fmt.Errorf("Sicherung der alten config.json: %w", err)
+			return s, false, fmt.Errorf("backing up the old config.json: %w", err)
 		}
 		if err := writeAtomic(path, &s.cfg); err != nil {
-			return s, false, fmt.Errorf("Migration speichern: %w", err)
+			return s, false, fmt.Errorf("saving the migration: %w", err)
 		}
 	}
 	return s, false, nil
@@ -244,13 +244,13 @@ func Validate(c *Config) error {
 		a.PeriodMs = 10
 	}
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
-		return errors.New("Port muss zwischen 1 und 65535 liegen")
+		return errors.New("port must be between 1 and 65535")
 	}
 	if len(c.Boards) == 0 {
-		return errors.New("Es muss mindestens ein Board geben")
+		return errors.New("there must be at least one board")
 	}
 	if len(c.Boards) > MaxBoards {
-		return fmt.Errorf("Höchstens %d Boards", MaxBoards)
+		return fmt.Errorf("at most %d boards", MaxBoards)
 	}
 	boardIDs := map[string]bool{}
 	tileIDs := map[string]bool{} // tile IDs are global: triggering and playback state are keyed by tile ID alone
@@ -258,10 +258,10 @@ func Validate(c *Config) error {
 	for _, b := range c.Boards {
 		if b.ID != "" {
 			if !slugRe.MatchString(b.ID) {
-				return fmt.Errorf("Board-Pfad %q ungültig (erlaubt: a-z, 0-9, Bindestrich; max. 40 Zeichen)", b.ID)
+				return fmt.Errorf("board path %q is invalid (allowed: a-z, 0-9, hyphen; max. 40 characters)", b.ID)
 			}
 			if boardIDs[b.ID] {
-				return fmt.Errorf("Board-Pfad %q doppelt", b.ID)
+				return fmt.Errorf("board path %q is used twice", b.ID)
 			}
 			boardIDs[b.ID] = true
 		}
@@ -281,7 +281,7 @@ func Validate(c *Config) error {
 			b.Name = b.ID
 		}
 		if b.Cols < 1 || b.Cols > MaxGrid || b.Rows < 1 || b.Rows > MaxGrid {
-			return fmt.Errorf("Board %q: Raster muss zwischen 1x1 und %dx%d liegen", b.ID, MaxGrid, MaxGrid)
+			return fmt.Errorf("board %q: grid must be between 1x1 and %dx%d", b.ID, MaxGrid, MaxGrid)
 		}
 		if b.Tiles == nil {
 			b.Tiles = []Tile{}
@@ -293,14 +293,14 @@ func Validate(c *Config) error {
 				t.ID = NewID()
 			}
 			if tileIDs[t.ID] {
-				return fmt.Errorf("Kachel-ID %q doppelt", t.ID)
+				return fmt.Errorf("tile ID %q is used twice", t.ID)
 			}
 			tileIDs[t.ID] = true
 			if t.X < 0 || t.Y < 0 {
-				return fmt.Errorf("Kachel %q: negative Position", t.ID)
+				return fmt.Errorf("tile %q: negative position", t.ID)
 			}
 			if other, dup := pos[[2]int{t.X, t.Y}]; dup {
-				return fmt.Errorf("Board %q: Kacheln %q und %q liegen auf derselben Position (%d,%d)", b.ID, other, t.ID, t.X, t.Y)
+				return fmt.Errorf("board %q: tiles %q and %q share the same position (%d,%d)", b.ID, other, t.ID, t.X, t.Y)
 			}
 			pos[[2]int{t.X, t.Y}] = t.ID
 			t.Pan = clampf(t.Pan, -1, 1)
@@ -310,10 +310,10 @@ func Validate(c *Config) error {
 			case "":
 				t.Mode = audio.ModeOneShot
 			default:
-				return fmt.Errorf("Kachel %q: unbekannter Modus %q", t.ID, t.Mode)
+				return fmt.Errorf("tile %q: unknown mode %q", t.ID, t.Mode)
 			}
 			if t.Icon != nil && t.Icon.Kind != "emoji" && t.Icon.Kind != "file" {
-				return fmt.Errorf("Kachel %q: unbekannter Icon-Typ %q", t.ID, t.Icon.Kind)
+				return fmt.Errorf("tile %q: unknown icon type %q", t.ID, t.Icon.Kind)
 			}
 		}
 	}

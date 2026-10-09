@@ -1,101 +1,103 @@
-# Soundboard – Entwicklungsplan
+# Soundboard - Development plan
 
-Privates Projekt (ggf. Open Source, nie kommerziell). Ziel: Windows-Soundboard als einzelne `.exe`.
+Private project (possibly open source, never commercial). Goal: a Windows soundboard as a single `.exe`.
 
-## Anforderungen
+## Requirements
 
-- Windows 10/11 als Ziel
-- Mikrofon-Eingang frei wählbar
-- **Hauptausgang** = Mikrofon + Effekte → erscheint in Windows als Aufnahmegerät, das als
-  *Standardkommunikationsgerät* gewählt werden kann (Discord, Teams, …)
-- **Monitor-Ausgang** = nur Effekte auf ein frei wählbares Ausgabegerät (Kopfhörer); Windows mischt
-  das mit allem anderen, was dort läuft
-- Sounds liegen lokal in einem Ordner
-- Ein Board (v1) mit variablem x/y-Kachel-Grid; pro Kachel: Sound, Icon, Balance (+ Gain, Modus)
-- Lokales Admin-UI für Kanäle und Board
-- Lokaler Webserver liefert die Board-Ansicht; jeder im Netz darf Sounds auslösen (keine PIN)
-- Frontend: TypeScript/React. Backend: Go, single exe, keine Installation zur Laufzeit
+- Windows 10/11 as the target
+- Freely selectable microphone input
+- **Main output** = microphone + effects → shows up in Windows as a recording device that can be chosen as the
+  *default communications device* (Discord, Teams, …)
+- **Monitor output** = effects only, on a freely selectable output device (headphones); Windows mixes it with
+  everything else playing there
+- Sounds are stored locally in a folder
+- Boards with a variable x/y tile grid (one board in v1, several since 2026-10-08); per tile: sound, icon, balance
+  (+ gain, mode)
+- Local admin UI for channels and boards
+- A local web server serves the board view; anyone on the network may trigger sounds (no PIN)
+- Frontend: TypeScript/React. Backend: Go, single exe, nothing to install at runtime
 
-## Machbarkeit – Ergebnis
+## Feasibility - result
 
-Machbar. Eine Voraussetzung bleibt:
+Feasible. One prerequisite remains:
 
-**Virtuelles Audiogerät.** Damit der Mix in Windows als Mikrofon auftaucht, braucht es einen
-Audio-Treiber. Eigene Treiber erfordern Kernel-Signierung → nicht sinnvoll.
-→ **VB-Audio Virtual Cable** (Donationware) einmalig installieren. App schreibt auf `CABLE Input`,
-Windows sieht `CABLE Output` als Mikrofon.
-- Mitliefern in der exe ist laut VB-Audio-Lizenz nur mit Vereinbarung erlaubt → App erkennt das
-  Kabel, und falls es fehlt, zeigt sie einen Hinweis + Download-Link.
-- Geprüfte Alternative: `VirtualDrivers/Virtual-Audio-Driver` (MIT) ist Beta, braucht Testsigning
-  und hat keinen Loopback → aktuell ungeeignet.
-- Die App kann `CABLE Output` per Knopfdruck als Standardkommunikationsgerät setzen
-  (undokumentiertes, aber stabiles `IPolicyConfig`-COM-Interface, das auch EarTrumpet/SoundSwitch nutzen).
+**Virtual audio device.** For the mix to show up as a microphone in Windows, an audio driver is needed. Writing our
+own would require kernel signing → not sensible.
+→ Install **VB-Audio Virtual Cable** (donationware) once. The app writes to `CABLE Input`, Windows sees
+`CABLE Output` as a microphone.
+- Bundling it in the exe is only permitted by agreement under the VB-Audio license → the app detects the cable and,
+  if it is missing, shows a hint + download link.
+- Alternative that was checked: `VirtualDrivers/Virtual-Audio-Driver` (MIT) is beta, needs test signing and has no
+  loopback → unsuitable for now.
+- The app can set `CABLE Output` as the default communications device at the push of a button (via the
+  undocumented but stable `IPolicyConfig` COM interface, which EarTrumpet/SoundSwitch use as well).
 
-## Technologie
+## Technology
 
-| Bereich | Wahl |
+| Area | Choice |
 |---|---|
-| Audio-I/O | `github.com/gen2brain/malgo` (miniaudio, WASAPI) – benötigt cgo |
-| Dekodierung/Resampling | `github.com/gopxl/beep/v2` (wav, mp3, flac, vorbis) – nur Dekoder, keine Ausgabe |
+| Audio I/O | `github.com/gen2brain/malgo` (miniaudio, WASAPI) - needs cgo |
+| Decoding/resampling | `github.com/gopxl/beep/v2` (wav, mp3, flac, vorbis) - decoders only, no output |
 | HTTP/WS | `net/http` + `github.com/coder/websocket` |
-| Ordner-Überwachung | `github.com/fsnotify/fsnotify` |
+| Folder watching | `github.com/fsnotify/fsnotify` |
 | Tray | `fyne.io/systray` |
-| Windows-COM (Default-Gerät setzen) | `github.com/go-ole/go-ole` |
-| QR-Code | `github.com/skip2/go-qrcode` |
-| TS-Typen aus Go | `github.com/gzuidhof/tygo` |
-| Exe-Icon/Manifest | `github.com/tc-hib/go-winres` |
-| Frontend | Vite, React, TypeScript, TanStack Query, dnd-kit, lucide-react |
+| Windows COM (set default device) | `github.com/go-ole/go-ole` |
+| QR code | `github.com/skip2/go-qrcode` |
+| TS types from Go | `github.com/gzuidhof/tygo` (planned; types are mirrored by hand instead) |
+| Exe icon/manifest | `github.com/tc-hib/go-winres` |
+| Frontend | Vite, React, TypeScript, TanStack Query, dnd-kit, lucide-react (planned; implemented with React, lucide-react and nosleep.js only) |
 
-**Build:** cgo-Cross-Compile im Docker-Container (`golang` + `gcc-mingw-w64`) → kein C-Compiler auf dem
-Host nötig. Konsequenz: Paket `internal/audio/device` (cgo) wird nur im Container gebaut; Mixer,
-Store, Server usw. sind reines Go und lokal mit `go test` testbar.
+**Build:** cgo cross-compile in a Docker container (`golang` + `gcc-mingw-w64`) → no C compiler needed on the host.
+Consequence: the cgo package `internal/audio/miniaudio` is only built in the container; mixer, store, server etc. are
+plain Go and testable locally with `go test`.
 
-## Architektur
+## Architecture
 
 ```
 ┌──────────────────────── soundboard.exe ───────────────────────────┐
-│ Mic (Capture) ─► SPSC-Ringpuffer ─► Drift-Ausgleich ─┐            │
-│                                                      ▼            │
-│ Trigger ─► Voice ──────────────────────────────► Bus „Main“ ─► Limiter ─► CABLE Input
-│        └─► Voice ──────────────────────────────► Bus „Monitor“ ─► Limiter ─► Kopfhörer
+│ Mic (capture) ─► SPSC ring buffer ─► drift compensation ─┐        │
+│                                                          ▼        │
+│ Trigger ─► Voice ───────────────────────────────► "Main" bus ─► limiter ─► CABLE Input
+│        └─► Voice ───────────────────────────────► "Monitor" bus ─► limiter ─► headphones
 │                                                                   │
-│ Library: sounds/ → dekodiert → float32 Stereo 48 kHz im RAM       │
+│ Library: sounds/ → decoded → float32 stereo 48 kHz in RAM         │
 │ Store:   config.json                                              │
-│ HTTP:    /admin (nur 127.0.0.1), /board, REST, WebSocket          │
-│ Tray:    Admin öffnen · Board-URL/QR · Beenden                    │
+│ HTTP:    /admin (127.0.0.1 only), /boards, REST, WebSocket        │
+│ Tray:    open admin · board URL/QR · quit                         │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- Jedes Ausgabegerät hat eine eigene Uhr. Deshalb führt jeder Bus eigene Voice-Cursor → Sounds
-  driften nie. Nur der Mic-Pfad (Capture-Uhr ≠ Main-Uhr) braucht Drift-Ausgleich.
-- Intern einheitlich: 48 kHz, float32, Stereo. miniaudio konvertiert Gerätformate.
-- Audio-Callbacks allokationsfrei; Steuerbefehle (trigger/stop) per lock-freier Queue in den Callback.
-- Balance: Constant-Power-Panning. Ausgangs-Limiter gegen Clipping bei mehreren Sounds.
-- Feedback-Schutz: Eingang darf nie `CABLE Output` sein.
-- Windows-Ducking: Ist ein Kommunikationsgerät aktiv, senkt Windows andere Audiostreams ab (auch den
-  Monitor). In der Session per `SetDuckingPreference` abmelden, sonst Hinweis auf
-  mmsys.cpl → Kommunikation → „Keine Aktion“.
+- Every output device has its own clock. That is why each bus keeps its own voice cursors → sounds never drift.
+  Only the mic path (capture clock ≠ main clock) needs drift compensation.
+- Internally uniform: 48 kHz, float32, stereo. miniaudio converts device formats.
+- Audio callbacks are allocation-free; control commands (trigger/stop) reach the callback through a lock-free queue.
+- Balance: planned as constant-power panning, implemented as a true balance control (see OPEN_QUESTIONS.md). An output
+  limiter guards against clipping when several sounds play at once.
+- Feedback protection: the input must never be `CABLE Output`.
+- Windows ducking: while a communications device is active, Windows lowers other audio streams (including the
+  monitor). Opt out per session via `SetDuckingPreference`, otherwise point to
+  mmsys.cpl → Communications → "Do nothing".
 
-## Datenmodell (v1)
+## Data model (v2)
 
 ```ts
 type Config = {
-  version: 1;
+  version: 2;                         // 1: single "board"
   audio: {
-    inputDeviceId: string;            // physisches Mikrofon
-    mainDeviceId: string;             // z. B. CABLE Input
-    monitorDeviceId?: string;         // Kopfhörer
+    inputDeviceId: string;            // physical microphone
+    mainDeviceId: string;             // e.g. CABLE Input
+    monitorDeviceId?: string;         // headphones
     micGain: number; fxGainMain: number; fxGainMonitor: number;
-    periodMs: number;                 // Standard 10
+    periodMs: number;                 // default 10
   };
   server: { port: number; bindLan: boolean };
-  board: Board;
+  boards: Board[];
 };
-type Board = { name: string; cols: number; rows: number; tiles: Tile[] };
+type Board = { id: string; name: string; cols: number; rows: number; tiles: Tile[] };  // id = URL path
 type Tile = {
-  id: string; x: number; y: number;
-  label?: string; sound: string;      // Dateiname relativ zu sounds/
-  icon?: { kind: "file" | "emoji" | "lucide"; value: string };
+  id: string; x: number; y: number;   // tile IDs are unique across all boards
+  label?: string; sound: string;      // file name relative to sounds/
+  icon?: { kind: "file" | "emoji"; value: string };
   pan: number;                        // -1 … +1
   gain: number;                       // 0 … 2
   mode: "oneshot" | "restart" | "loop" | "toggle";
@@ -103,78 +105,79 @@ type Tile = {
 };
 ```
 
-Daten in `%APPDATA%\Soundboard\` (`config.json`, `sounds/`, `icons/`); portabler Modus, wenn
-neben der exe ein Ordner `data/` liegt.
+Data lives in `%APPDATA%\Soundboard\` (`config.json`, `sounds/`, `icons/`); portable mode if a folder `data/` sits
+next to the exe.
 
-## Projektstruktur
+## Project structure
 
 ```
 soundboard/
 ├─ backend/
-│  ├─ cmd/soundboard/       main, Tray, Single-Instance
-│  ├─ cmd/spike/            Phase-0-Prototyp
-│  ├─ internal/audio/       Engine, Busse, Voices, Ringpuffer, Drift (reines Go)
-│  ├─ internal/audio/device malgo-Anbindung (cgo)
-│  ├─ internal/winaudio/    IPolicyConfig, Ducking (Windows-COM)
-│  ├─ internal/library/     Sound-Ordner, Dekodierung, Cache
+│  ├─ cmd/soundboard/       main, tray, single instance
+│  ├─ cmd/spike/            phase 0 prototype / diagnostics
+│  ├─ internal/audio/       engine, buses, voices, ring buffer, drift (plain Go)
+│  ├─ internal/audio/miniaudio  malgo binding (cgo)
+│  ├─ internal/winaudio/    IPolicyConfig (Windows COM)
+│  ├─ internal/library/     sound folder, decoding
 │  ├─ internal/store/       config.json
-│  ├─ internal/server/      REST, WS, go:embed
-│  └─ web/dist/             Frontend-Build
+│  ├─ internal/server/      REST, WS
+│  └─ web/dist/             frontend build (go:embed)
 ├─ frontend/                Vite + React + TS (admin/, board/, shared/)
-├─ build/Dockerfile         Cross-Compile-Image
-└─ Taskfile.yml / build.ps1
+├─ build/Dockerfile         cross-compile image
+└─ scripts/                 build.ps1, build-backend.ps1
 ```
 
-## Phasen
+## Phases
 
-> **Status (Stand 2026-10-06):** Phase 0–5 sind umgesetzt, siehe [README.md](README.md). Was ungetestet blieb
-> (Hörtest/Latenz mit echtem virtuellem Kabel, Dauertest, Standardgerät setzen) und welche Entscheidungen ich
-> getroffen habe, steht in [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Abweichungen vom Plan: echte Balance statt
-> Constant-Power-Panning, kein tygo/dnd-kit/TanStack Query, Ziel-Füllstand des Mikrofon-Puffers = 2 Perioden.
+> **Status (as of 2026-10-09):** Phases 0-5 are implemented, see [README.md](README.md). Added later: multiple boards
+> (`/boards`, tabs in the admin UI) and keeping the phone screen awake. What stayed untested (listening/latency with a
+> real virtual cable, soak test, setting the default device) and the decisions I took are in
+> [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md). Deviations from the plan: true balance instead of constant-power panning, no
+> tygo/dnd-kit/TanStack Query, the microphone buffer's target fill level is 2 periods.
 
-### Phase 0 – Spike (2–3 Tage) ✅ (Hardware-Messungen offen)
-- [x] Docker-Build für eine Windows-exe mit malgo
-- [x] Geräte auflisten (Capture/Playback, Default-Kennzeichnung)
-- [x] Mic → Ringpuffer → CABLE Input; Sound in Main + Monitor einmischen (`spike run …`)
-- [x] Statistik: Ringpuffer-Füllstand, Unter-/Überläufe, Drift-Korrekturen
-- [ ] Manueller Test: Latenz (< 30–40 ms), Knackser, 1 h Dauerlauf, CPU
-- [x] Entscheidung: Ansatz bestätigt (Go + miniaudio)
+### Phase 0 - Spike (2-3 days) ✅ (hardware measurements still open)
+- [x] Docker build of a Windows exe with malgo
+- [x] List devices (capture/playback, default flag)
+- [x] Mic → ring buffer → CABLE Input; mix a sound into main + monitor (`spike run …`)
+- [x] Statistics: ring buffer fill level, underruns/overruns, drift corrections
+- [ ] Manual test: latency (< 30-40 ms), crackles, 1 h soak run, CPU
+- [x] Decision: approach confirmed (Go + miniaudio)
 
-### Phase 1 – Audio-Engine (~1 Woche)
-- Engine-API: `SetDevices`, `Trigger(tileID)`, `Stop`, `StopAll`, Pegel, Events (playing/stopped)
-- Wiedergabemodi, Gain/Pan, Limiter, Drift-Regelung (PI-geregeltes Resampling)
-- Geräte-Hotplug, Reconnect, Default-Wechsel
-- Unit-Tests (Mixer, Pan, Ringpuffer, Drift)
+### Phase 1 - Audio engine (~1 week)
+- Engine API: device settings, `Trigger(tileID)`, `Stop`, `StopAll`, levels, events (playing/stopped)
+- Playback modes, gain/pan, limiter, drift control (PI-controlled resampling)
+- Device hot-plug, reconnect, default-device changes
+- Unit tests (mixer, pan, ring buffer, drift)
 
-### Phase 2 – Library & Store (2–3 Tage)
-- Sound-Ordner einlesen/überwachen, dekodieren, resamplen, Fehlerbehandlung
-- `config.json` mit Version und atomarem Schreiben
+### Phase 2 - Library & store (2-3 days)
+- Read/watch the sound folder, decode, resample, error handling
+- `config.json` with a version and atomic writes
 
-### Phase 3 – Server/API (3–4 Tage)
-- REST: Geräte, Config, Board, Kacheln, Upload Sounds/Icons
-- WebSocket: `trigger`, `stop`, `stopAll`, Status-/Pegel-Events
-- Admin nur über localhost; Board im LAN offen
-- tygo-Typen für das Frontend
+### Phase 3 - Server/API (3-4 days)
+- REST: devices, config, boards, tiles, upload of sounds/icons
+- WebSocket: `trigger`, `stop`, `stopAll`, status/level events
+- Admin only via localhost; boards open on the LAN
+- tygo types for the frontend (dropped, see above)
 
-### Phase 4 – Frontend (~1–1,5 Wochen)
-- Admin: Geräte (inkl. CABLE-Erkennung, „als Standardkommunikationsgerät setzen“), Pegel,
-  Grid-Größe, Kachel-Editor (Drag & Drop, Icon, Pan, Gain, Modus), Vorhören auf Monitor, Upload
-- Board: responsives Touch-Grid, Live-Status, Vollbild, PWA
+### Phase 4 - Frontend (~1-1.5 weeks)
+- Admin: devices (incl. CABLE detection, "set as default communications device"), levels, grid size, tile editor
+  (drag & drop, icon, pan, gain, mode), audition on the monitor, upload
+- Board: responsive touch grid, live status, fullscreen, PWA
 
-### Phase 5 – Packaging (2–3 Tage)
-- go:embed, `-H windowsgui`, Icon/Manifest, Tray, Single-Instance, Browser-Start, Autostart (optional)
-- Ducking-Opt-out, IPolicyConfig
+### Phase 5 - Packaging (2-3 days)
+- go:embed, `-H windowsgui`, icon/manifest, tray, single instance, browser start, autostart (optional)
+- Ducking opt-out, IPolicyConfig
 
-### Phase 6 – Später
-- Globale Hotkeys, Mic-Ducking bei Effekten, Fades, mehrere Boards, Import/Export, Wails-Fenster
+### Phase 6 - Later
+- Global hotkeys, mic ducking while effects play, fades, ~~multiple boards~~ (done), import/export, Wails window
 
-## Risiken
+## Risks
 
-| Risiko | Gegenmaßnahme |
+| Risk | Mitigation |
 |---|---|
-| VB-Cable fehlt | Erkennung + Anleitung im Admin |
-| Drift Mic ↔ Main | Ringpuffer + Drift-Regelung, Dauertest in Phase 0 |
-| Windows-Ducking senkt Monitor ab | Ducking-Opt-out / Hinweis |
-| Mikrofon-Datenschutz blockiert Desktop-Apps | Fehler erkennen, Hinweis auf Einstellungen |
-| Firewall blockiert LAN | Hinweis, Port konfigurierbar |
-| cgo-Build | Docker-Image, reproduzierbar |
+| VB-Cable is missing | Detection + instructions in the admin UI |
+| Drift mic ↔ main | Ring buffer + drift control, soak test in phase 0 |
+| Windows ducking lowers the monitor | Ducking opt-out / hint |
+| Microphone privacy settings block desktop apps | Detect the error, point to the settings |
+| Firewall blocks the LAN | Hint, configurable port |
+| cgo build | Docker image, reproducible |

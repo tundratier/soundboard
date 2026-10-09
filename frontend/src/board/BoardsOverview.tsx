@@ -34,11 +34,11 @@ export function BoardsOverview() {
     <div className="board-page">
       <header className="board-head">
         <h1>Boards</h1>
-        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt – verbinde neu …'} />
+        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt - verbinde neu …'} />
         <div className="grow" />
         <KeepAwakeButton />
       </header>
-      {!connected && <div className="banner">Verbindung getrennt – versuche erneut …</div>}
+      {!connected && <div className="banner">Verbindung getrennt - versuche erneut …</div>}
       <main className="board-cards">
         {boards.map((b) => (
           <a key={b.id} className="board-card" href={`/boards/${encodeURIComponent(b.id)}`}>

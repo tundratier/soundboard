@@ -25,7 +25,7 @@ export function SoundsPanel({
     setBusy(true)
     try {
       const r = await api.upload('sounds', files)
-      notify(`${r.saved.length} Sound(s) hochgeladen${r.errors.length ? ` – Fehler: ${r.errors.join('; ')}` : ''}`, r.errors.length > 0)
+      notify(`${r.saved.length} Sound(s) hochgeladen${r.errors.length ? ` - Fehler: ${r.errors.join('; ')}` : ''}`, r.errors.length > 0)
     } catch (e) {
       notify(`Upload fehlgeschlagen: ${(e as Error).message}`, true)
     } finally {

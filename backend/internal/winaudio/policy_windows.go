@@ -46,7 +46,7 @@ type policyConfigVtbl struct {
 // SetDefaultEndpoint sets the device with the given WASAPI endpoint ID as default for the given roles.
 func SetDefaultEndpoint(deviceID string, roles ...int) error {
 	if len(roles) == 0 {
-		return fmt.Errorf("keine Rolle angegeben")
+		return fmt.Errorf("no role given")
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -61,7 +61,7 @@ func SetDefaultEndpoint(deviceID string, roles ...int) error {
 
 	unk, err := ole.CreateInstance(clsidPolicyConfig, iidPolicyConfig)
 	if err != nil {
-		return fmt.Errorf("IPolicyConfig nicht verfügbar: %w", err)
+		return fmt.Errorf("IPolicyConfig not available: %w", err)
 	}
 	defer unk.Release()
 	vtbl := (*policyConfigVtbl)(unsafe.Pointer(unk.RawVTable))
@@ -73,7 +73,7 @@ func SetDefaultEndpoint(deviceID string, roles ...int) error {
 	for _, role := range roles {
 		hr, _, _ := syscall.SyscallN(vtbl.SetDefaultEndpoint, uintptr(unsafe.Pointer(unk)), uintptr(unsafe.Pointer(id)), uintptr(role))
 		if hr != 0 {
-			return fmt.Errorf("SetDefaultEndpoint(Rolle %d) fehlgeschlagen: HRESULT 0x%08X", role, uint32(hr))
+			return fmt.Errorf("SetDefaultEndpoint(role %d) failed: HRESULT 0x%08X", role, uint32(hr))
 		}
 	}
 	return nil

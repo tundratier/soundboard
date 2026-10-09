@@ -26,9 +26,10 @@ type Event struct {
 
 // RoleStatus describes the state of one of the three device roles.
 type RoleStatus struct {
-	DeviceID string `json:"deviceId"`
-	Running  bool   `json:"running"`
-	Error    string `json:"error,omitempty"`
+	DeviceID  string `json:"deviceId"`
+	Running   bool   `json:"running"`
+	Error     string `json:"error,omitempty"`
+	ErrorCode string `json:"errorCode,omitempty"` // device_missing | feedback | open_failed | device_stopped (translated by the UI)
 }
 
 // Status is the engine's live state (for UI/diagnostics).
@@ -53,6 +54,7 @@ type role struct {
 	openID  string // ID the running stream was opened with
 	openPer int
 	err     string
+	errCode string
 	retryAt time.Time
 }
 
@@ -174,7 +176,7 @@ func (e *Engine) reconcile(force bool) {
 // due checks whether a role should be (re)opened and sets error texts where needed.
 func (e *Engine) due(r *role, force bool) (string, bool) {
 	if r.wantID == "" {
-		r.err = ""
+		r.err, r.errCode = "", ""
 		return "", false
 	}
 	if !force && time.Now().Before(r.retryAt) {
@@ -182,7 +184,7 @@ func (e *Engine) due(r *role, force bool) (string, bool) {
 	}
 	name, ok := e.names[r.wantID]
 	if !ok {
-		r.err = "Gerät nicht gefunden (abgesteckt?)"
+		r.err, r.errCode = "device not found (unplugged?)", "device_missing"
 		r.retryAt = time.Now().Add(2 * time.Second)
 		return "", false
 	}
@@ -202,13 +204,13 @@ func (e *Engine) reconcilePlayback(r *role, bus *Bus, per int, force bool) {
 	}
 	s, err := e.backend.OpenPlayback(r.wantID, per, bus.Fill, func() { e.streamStopped(r) })
 	if err != nil {
-		r.err = err.Error()
+		r.err, r.errCode = err.Error(), "open_failed"
 		r.retryAt = time.Now().Add(5 * time.Second)
-		log.Printf("audio: %s öffnen fehlgeschlagen: %v", r.name, err)
+		log.Printf("audio: opening %s failed: %v", r.name, err)
 		return
 	}
-	r.stream, r.openID, r.openPer, r.err = s, r.wantID, per, ""
-	log.Printf("audio: %s läuft auf %q", r.name, name)
+	r.stream, r.openID, r.openPer, r.err, r.errCode = s, r.wantID, per, "", ""
+	log.Printf("audio: %s running on %q", r.name, name)
 }
 
 func (e *Engine) reconcileInput(per int, force bool) {
@@ -226,7 +228,7 @@ func (e *Engine) reconcileInput(per int, force bool) {
 	// Feedback protection: the output end of the virtual cable must never serve as microphone,
 	// otherwise the other party hears themselves.
 	if strings.Contains(strings.ToLower(name), "cable output") {
-		r.err = "Rückkopplung: \"CABLE Output\" ist das Ausgabe-Ende dieser App und kann nicht als Mikrofon dienen"
+		r.err, r.errCode = "feedback: \"CABLE Output\" is the output end of this app's virtual cable and cannot be used as a microphone", "feedback"
 		r.retryAt = time.Now().Add(5 * time.Second)
 		return
 	}
@@ -234,14 +236,14 @@ func (e *Engine) reconcileInput(per int, force bool) {
 	reader := NewMicReader(ring, per*SampleRate/1000*2)
 	s, err := e.backend.OpenCapture(r.wantID, per, func(in []float32) { ring.Write(in) }, func() { e.streamStopped(r) })
 	if err != nil {
-		r.err = err.Error()
+		r.err, r.errCode = err.Error(), "open_failed"
 		r.retryAt = time.Now().Add(5 * time.Second)
-		log.Printf("audio: input öffnen fehlgeschlagen: %v", err)
+		log.Printf("audio: opening input failed: %v", err)
 		return
 	}
 	e.mainBus.mic.Store(reader)
-	r.stream, r.openID, r.openPer, r.err = s, r.wantID, per, ""
-	log.Printf("audio: input läuft auf %q", name)
+	r.stream, r.openID, r.openPer, r.err, r.errCode = s, r.wantID, per, "", ""
+	log.Printf("audio: input running on %q", name)
 }
 
 func (e *Engine) closeInput() {
@@ -282,7 +284,7 @@ func (e *Engine) streamStopped(r *role) {
 		case &e.monitor:
 			e.closePlayback(r, e.monBus)
 		}
-		r.err = "Gerät gestoppt, versuche erneut zu verbinden"
+		r.err, r.errCode = "device stopped, trying to reconnect", "device_stopped"
 		r.retryAt = time.Now().Add(2 * time.Second)
 	}()
 }
@@ -425,9 +427,9 @@ func (e *Engine) Status() Status {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	st := Status{
-		Input:   RoleStatus{e.input.wantID, e.input.stream != nil, e.input.err},
-		Main:    RoleStatus{e.main.wantID, e.main.stream != nil, e.main.err},
-		Monitor: RoleStatus{e.monitor.wantID, e.monitor.stream != nil, e.monitor.err},
+		Input:   RoleStatus{e.input.wantID, e.input.stream != nil, e.input.err, e.input.errCode},
+		Main:    RoleStatus{e.main.wantID, e.main.stream != nil, e.main.err, e.main.errCode},
+		Monitor: RoleStatus{e.monitor.wantID, e.monitor.stream != nil, e.monitor.err, e.monitor.errCode},
 	}
 	st.MainPeak, st.MicPeak = e.mainBus.Peaks()
 	st.MonitorPeak, _ = e.monBus.Peaks()

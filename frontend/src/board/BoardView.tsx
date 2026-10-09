@@ -94,7 +94,7 @@ export function BoardView({ boardId }: { boardId: string }) {
           <LayoutGrid size={18} />
         </a>
         <h1>{board.name}</h1>
-        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt – verbinde neu …'} />
+        <span className={`dot ${connected ? 'ok' : 'bad'}`} title={connected ? 'Verbunden' : 'Getrennt - verbinde neu …'} />
         <div className="grow" />
         <button className="btn danger" onPointerDown={stopAll} title="Alle Sounds stoppen">
           <Square size={16} /> Stopp
@@ -106,7 +106,7 @@ export function BoardView({ boardId }: { boardId: string }) {
           </button>
         )}
       </header>
-      {!connected && <div className="banner">Verbindung getrennt – versuche erneut …</div>}
+      {!connected && <div className="banner">Verbindung getrennt - versuche erneut …</div>}
       <main
         className="board-grid"
         style={{ gridTemplateColumns: `repeat(${board.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${board.rows}, minmax(0, 1fr))` }}

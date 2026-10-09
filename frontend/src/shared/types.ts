@@ -68,7 +68,8 @@ export interface DeviceInfo {
 export interface RoleStatus {
   deviceId: string
   running: boolean
-  error?: string
+  error?: string // English message from the backend (also logged)
+  errorCode?: 'device_missing' | 'feedback' | 'open_failed' | 'device_stopped' // translated for the UI
 }
 
 export interface EngineStatus {

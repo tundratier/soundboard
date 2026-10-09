@@ -25,19 +25,19 @@ func TestDecodeResamplesToStereo48k(t *testing.T) {
 		t.Fatalf("Frames = %d", snd.Frames)
 	}
 	if len(snd.Data) != snd.Frames*2 {
-		t.Fatal("kein Stereo-Interleave")
+		t.Fatal("not interleaved stereo")
 	}
 	var peak float32
 	for i := 0; i < len(snd.Data); i += 2 {
 		if snd.Data[i] != snd.Data[i+1] {
-			t.Fatal("Mono sollte auf beide Kanäle gespiegelt sein")
+			t.Fatal("mono should be mirrored to both channels")
 		}
 		if a := snd.Data[i]; a > peak {
 			peak = a
 		}
 	}
 	if peak < 0.2 || peak > 0.5 {
-		t.Fatalf("Pegel unplausibel: %v", peak)
+		t.Fatalf("implausible level: %v", peak)
 	}
 }
 
@@ -61,44 +61,44 @@ func TestLibrarySaveListDelete(t *testing.T) {
 	}
 
 	f := read()
-	name, err := lib.Save("../evil/Mein Sound?.wav", f)
+	name, err := lib.Save("../evil/My Sound?.wav", f)
 	f.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.ContainsAny(name, `/\?`) {
-		t.Fatalf("unsicherer Name: %q", name)
+		t.Fatalf("unsafe name: %q", name)
 	}
 	f = read()
-	name2, _ := lib.Save("../evil/Mein Sound?.wav", f)
+	name2, _ := lib.Save("../evil/My Sound?.wav", f)
 	f.Close()
 	if name2 == name {
-		t.Fatal("Kollision nicht aufgelöst")
+		t.Fatal("name collision not resolved")
 	}
 	if lib.Get(name) == nil || len(lib.List()) != 2 {
 		t.Fatalf("List: %+v", lib.List())
 	}
 	if _, err := lib.Save("virus.exe", strings.NewReader("x")); err == nil {
-		t.Fatal("exe darf nicht erlaubt sein")
+		t.Fatal("exe must not be allowed")
 	}
 	if err := lib.Delete(name); err != nil {
 		t.Fatal(err)
 	}
 	if lib.Get(name) != nil {
-		t.Fatal("nach Delete noch vorhanden")
+		t.Fatal("still present after delete")
 	}
 	if err := lib.Delete("../x.wav"); err == nil {
-		t.Fatal("Pfad-Traversal nicht abgewehrt")
+		t.Fatal("path traversal not rejected")
 	}
 }
 
 func TestLibraryBrokenFileReportsError(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "kaputt.mp3"), []byte("das ist kein mp3"), 0o644)
+	os.WriteFile(filepath.Join(dir, "broken.mp3"), []byte("this is not an mp3"), 0o644)
 	lib, _ := New(dir, nil)
 	lib.Scan()
 	l := lib.List()
-	if len(l) != 1 || l[0].Error == "" || lib.Get("kaputt.mp3") != nil {
+	if len(l) != 1 || l[0].Error == "" || lib.Get("broken.mp3") != nil {
 		t.Fatalf("%+v", l)
 	}
 }
@@ -118,19 +118,19 @@ func TestLibraryWatch(t *testing.T) {
 	select {
 	case <-changes:
 	case <-time.After(3 * time.Second):
-		t.Fatal("Watcher hat neue Datei nicht erkannt")
+		t.Fatal("watcher did not detect the new file")
 	}
 	if lib.Get("neu.wav") == nil {
-		t.Fatal("nicht geladen")
+		t.Fatal("not loaded")
 	}
 	os.Remove(filepath.Join(dir, "neu.wav"))
 	select {
 	case <-changes:
 	case <-time.After(3 * time.Second):
-		t.Fatal("Löschen nicht erkannt")
+		t.Fatal("deletion not detected")
 	}
 	if lib.Get("neu.wav") != nil {
-		t.Fatal("noch vorhanden")
+		t.Fatal("still present")
 	}
 	_ = audio.SampleRate
 }

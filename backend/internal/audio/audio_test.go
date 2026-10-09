@@ -71,10 +71,10 @@ func TestBusMixAndLimiter(t *testing.T) {
 			t.Fatal(tile)
 		}
 	default:
-		t.Fatal("kein Ende gemeldet")
+		t.Fatal("no end reported")
 	}
 	if out[36*2] != 0 {
-		t.Fatalf("nach Ende muss Stille folgen, got %v", out[36*2])
+		t.Fatalf("silence must follow the end, got %v", out[36*2])
 	}
 
 	// Limiter: two loud sounds must not exceed the threshold.
@@ -83,7 +83,7 @@ func TestBusMixAndLimiter(t *testing.T) {
 	b.Fill(out)
 	for i, s := range out {
 		if s > limThresh+1e-4 {
-			t.Fatalf("Limiter überschritten bei %d: %v", i, s)
+			t.Fatalf("limiter exceeded at %d: %v", i, s)
 		}
 	}
 }
@@ -96,10 +96,10 @@ func TestBusStopFade(t *testing.T) {
 	b.send(command{kind: cmdStop, tile: "a"})
 	b.Fill(out)
 	if out[0] < 0.4 || out[stopFadeLen*2-2] > 0.01 {
-		t.Fatalf("Fade unplausibel: erster %v, letzter %v", out[0], out[stopFadeLen*2-2])
+		t.Fatalf("implausible fade: first %v, last %v", out[0], out[stopFadeLen*2-2])
 	}
 	if len(b.voices) != 0 {
-		t.Fatal("Voice sollte beendet sein")
+		t.Fatal("voice should have ended")
 	}
 }
 
@@ -138,7 +138,7 @@ func TestMicReaderDriftConverges(t *testing.T) {
 		}
 		avg := sumFill / float64(cnt)
 		if math.Abs(avg-float64(target)) > 100 {
-			t.Errorf("drift %+.0fppm: mittlerer Füllstand %.0f weit von Ziel %d", drift*1e6, avg, target)
+			t.Errorf("drift %+.0fppm: mean fill level %.0f is far from target %d", drift*1e6, avg, target)
 		}
 		if u := m.Underruns.Load(); u > 3 {
 			t.Errorf("drift %+.0fppm: %d Underruns", drift*1e6, u)
@@ -146,7 +146,7 @@ func TestMicReaderDriftConverges(t *testing.T) {
 		if o := m.Overruns.Load(); o > 3 {
 			t.Errorf("drift %+.0fppm: %d Overruns", drift*1e6, o)
 		}
-		t.Logf("drift %+6.0fppm: Ø Füllstand %.0f (Ziel %d), Ratio %.6f, under %d over %d",
+		t.Logf("drift %+6.0fppm: mean fill %.0f (target %d), Ratio %.6f, under %d over %d",
 			drift*1e6, avg, target, m.Ratio(), m.Underruns.Load(), m.Overruns.Load())
 	}
 }
@@ -162,7 +162,7 @@ func TestMicReaderPassesSignal(t *testing.T) {
 	out := make([]float32, 100*2)
 	m.Add(out, 0.5)
 	if math.Abs(float64(out[50])-0.25) > 1e-3 {
-		t.Fatalf("erwartet 0.25, got %v", out[50])
+		t.Fatalf("want 0.25, got %v", out[50])
 	}
 }
 
@@ -216,16 +216,16 @@ func waitEvent(t *testing.T, e *Engine, typ, tile string) {
 				return
 			}
 		case <-timeout:
-			t.Fatalf("Event %s/%s nicht empfangen", typ, tile)
+			t.Fatalf("event %s/%s not received", typ, tile)
 		}
 	}
 }
 
 func TestEngineRoutingAndModes(t *testing.T) {
 	fb := &fakeBackend{devs: []DeviceInfo{
-		{ID: "mic", Name: "Mikro", Kind: KindCapture},
+		{ID: "mic", Name: "Microphone", Kind: KindCapture},
 		{ID: "cable", Name: "CABLE Input", Kind: KindPlayback},
-		{ID: "phones", Name: "Kopfhörer", Kind: KindPlayback},
+		{ID: "phones", Name: "Headphones", Kind: KindPlayback},
 	}}
 	e := NewEngine(fb)
 	defer e.Close()
@@ -261,7 +261,7 @@ func TestEngineRoutingAndModes(t *testing.T) {
 	waitEvent(t, e, "started", "loop")
 	fb.pump("cable", 1000)
 	if out := fb.pump("cable", 10); out[0] == 0 {
-		t.Error("Loop sollte weiterlaufen")
+		t.Error("loop should keep running")
 	}
 	e.StopAll()
 	fb.pump("cable", 480)
@@ -271,10 +271,10 @@ func TestEngineRoutingAndModes(t *testing.T) {
 	// Preview on the monitor only
 	e.Preview(constSound(1000, 0.3), 1, 0)
 	if out := fb.pump("cable", 10); out[0] != 0 {
-		t.Error("Preview darf nicht auf Main laufen")
+		t.Error("preview must not play on main")
 	}
 	if out := fb.pump("phones", 10); out[0] == 0 {
-		t.Error("Preview fehlt auf Monitor")
+		t.Error("preview missing on monitor")
 	}
 }
 
@@ -287,8 +287,8 @@ func TestEngineFeedbackGuard(t *testing.T) {
 	defer e.Close()
 	e.ApplyNow(Settings{InputID: "cableout", MainID: "cable", PeriodMs: 10})
 	st := e.Status()
-	if st.Input.Running || st.Input.Error == "" {
-		t.Fatalf("Rückkopplungsschutz greift nicht: %+v", st.Input)
+	if st.Input.Running || st.Input.Error == "" || st.Input.ErrorCode != "feedback" {
+		t.Fatalf("feedback protection did not trigger: %+v", st.Input)
 	}
 }
 

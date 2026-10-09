@@ -11,5 +11,5 @@ const (
 )
 
 func SetDefaultEndpoint(deviceID string, roles ...int) error {
-	return errors.New("nur unter Windows verfügbar")
+	return errors.New("only available on Windows")
 }
