@@ -112,7 +112,7 @@ export function Admin() {
     <div className="admin">
       <header className="admin-head">
         <h1>Soundboard - Verwaltung</h1>
-        <span className="note">v{state.version}</span>
+        <span className="note">{/^\d/.test(state.version) ? `v${state.version}` : state.version}</span>
         <div className="grow" />
         <a className="btn" href="/boards" target="_blank" rel="noreferrer">
           <ExternalLink size={14} /> Boards öffnen
