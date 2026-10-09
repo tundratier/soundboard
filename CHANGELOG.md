@@ -3,6 +3,16 @@
 All notable changes to this project are documented in this file. It is generated from the
 Conventional Commits by scripts/release.ps1; versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.0] - 2026-10-09
+
+### Features
+
+- add an English UI and pick the language automatically (27dc592)
+
+### Bug fixes
+
+- **admin:** join the board tabs and the editor card visually (ae4c227)
+
 ## [0.1.2] - 2026-10-09
 
 ### Other changes
