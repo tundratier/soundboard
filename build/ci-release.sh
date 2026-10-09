@@ -1,19 +1,18 @@
 #!/bin/bash
-# Bitbucket pipeline: builds the Windows exe for the release tag at HEAD and publishes it as a repository download.
-# Bitbucket has no "releases" like GitHub; the tag vX.Y.Z marks the release and the downloads hold the artifacts.
+# CI (GitHub Actions): builds the Windows exe for the release tag at HEAD and publishes it as a GitHub release.
+# The tag vX.Y.Z marks the release; the release gets the zip (exes, README, CHANGELOG), its SHA-256 checksum and the
+# changelog section of the version as release notes.
 #
-# Run from the repository root with the frontend already built (backend/web/dist) and gcc-mingw-w64 + zip installed.
-# Environment:
-#   BITBUCKET_REPO_FULL_NAME  workspace/repo (set by Bitbucket Pipelines)
-#   BB_ACCESS_TOKEN           repository access token with "Repositories: Write" (secured repository variable), or
-#   BB_USERNAME + BB_APP_PASSWORD   Bitbucket user and app password/API token with repository write access
-#   RELEASE_TAG               optional: use this tag instead of the one at HEAD (for testing)
-#   DRY_RUN=1                 build and package, but do not upload
-#   SKIP_BUILD=1              package the existing dist/*.exe instead of building (local testing)
-#   BB_API_URL                API base URL (default https://api.bitbucket.org/2.0; overridable for tests)
+# Run from the repository with the frontend already built (backend/web/dist), gcc-mingw-w64 and zip installed and
+# the GitHub CLI (gh) available. Environment:
+#   GH_TOKEN      token for gh; in Actions the workflow passes github.token (the job needs "contents: write")
+#   GH_REPO       owner/repo (the workflow passes github.repository)
+#   RELEASE_TAG   optional: use this tag instead of the one at HEAD (for testing)
+#   DRY_RUN=1     build and package, but do not publish
+#   SKIP_BUILD=1  package the existing dist/*.exe instead of building (local testing)
 set -euo pipefail
 
-ROOT="${BITBUCKET_CLONE_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+ROOT="${GITHUB_WORKSPACE:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$ROOT"
 
 # --- which release is this? ---------------------------------------------------------------------------------
@@ -43,7 +42,8 @@ fi
 # --- package ------------------------------------------------------------------------------------------------
 PKG="soundboard-$TAG-windows-amd64"
 OUT="$ROOT/dist"
-rm -rf "${OUT:?}/$PKG" "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$OUT/$PKG-release-notes.md"
+NOTES="$OUT/$PKG-release-notes.md"
+rm -rf "${OUT:?}/$PKG" "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$NOTES"
 mkdir -p "$OUT/$PKG"
 cp "$OUT/soundboard.exe" "$OUT/soundboard-console.exe" README.md "$OUT/$PKG/"
 [[ -f CHANGELOG.md ]] && cp CHANGELOG.md "$OUT/$PKG/"
@@ -52,34 +52,29 @@ cp "$OUT/soundboard.exe" "$OUT/soundboard-console.exe" README.md "$OUT/$PKG/"
 # release notes: the matching section of CHANGELOG.md
 if [[ -f CHANGELOG.md ]]; then
   awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { on = 1; next } /^## \[/ { on = 0 } on' CHANGELOG.md \
-    | sed '/./,$!d' > "$OUT/$PKG-release-notes.md"
+    | sed '/./,$!d' > "$NOTES"
 fi
-[[ -s "$OUT/$PKG-release-notes.md" ]] || echo "Release $VERSION" > "$OUT/$PKG-release-notes.md"
+[[ -s "$NOTES" ]] || echo "Release $VERSION" > "$NOTES"
 
 echo "Packaged:"
-ls -l "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$OUT/$PKG-release-notes.md"
+ls -l "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$NOTES"
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
-  echo "DRY_RUN=1: not uploading"
+  echo "DRY_RUN=1: not publishing"
   exit 0
 fi
 
-# --- publish as repository downloads ----------------------------------------------------------------------------
-: "${BITBUCKET_REPO_FULL_NAME:?BITBUCKET_REPO_FULL_NAME is not set}"
-if [[ -n "${BB_ACCESS_TOKEN:-}" ]]; then
-  AUTH=(-H "Authorization: Bearer $BB_ACCESS_TOKEN")
-elif [[ -n "${BB_USERNAME:-}" && -n "${BB_APP_PASSWORD:-}" ]]; then
-  AUTH=(--user "$BB_USERNAME:$BB_APP_PASSWORD")
-else
-  echo "error: set the secured repository variable BB_ACCESS_TOKEN (or BB_USERNAME and BB_APP_PASSWORD)" >&2
-  exit 1
-fi
+# --- publish as a GitHub release ----------------------------------------------------------------------------------
+command -v gh >/dev/null || { echo "error: the GitHub CLI (gh) is not installed" >&2; exit 1; }
+[[ -n "${GH_TOKEN:-}" ]] || { echo "error: GH_TOKEN is not set (in Actions: env GH_TOKEN: \${{ github.token }})" >&2; exit 1; }
 
-# uploading a file with an existing name replaces it, so re-running a pipeline is safe
-for f in "$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256" "$OUT/$PKG-release-notes.md"; do
-  echo "Uploading $(basename "$f")"
-  curl --fail-with-body -sS -X POST "${AUTH[@]}" \
-    "${BB_API_URL:-https://api.bitbucket.org/2.0}/repositories/$BITBUCKET_REPO_FULL_NAME/downloads" \
-    --form "files=@$f"
-  echo
-done
-echo "Published $TAG: https://bitbucket.org/$BITBUCKET_REPO_FULL_NAME/downloads/"
+ASSETS=("$OUT/$PKG.zip" "$OUT/$PKG.zip.sha256")
+if gh release view "$TAG" >/dev/null 2>&1; then
+  # re-running for an existing release (retry, or the tag was already released): update it instead of failing
+  echo "Release $TAG exists: updating notes and assets"
+  gh release edit "$TAG" --title "$TAG" --notes-file "$NOTES"
+  gh release upload "$TAG" "${ASSETS[@]}" --clobber
+else
+  # --verify-tag: never create the tag implicitly; it must already exist on the remote
+  gh release create "$TAG" "${ASSETS[@]}" --title "$TAG" --notes-file "$NOTES" --verify-tag --latest
+fi
+echo "Published $TAG"
