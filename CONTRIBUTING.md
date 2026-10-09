@@ -122,28 +122,32 @@ git push origin master develop --follow-tags
 `scripts\release.ps1 -Push` pushes as part of the release. A release needs at least one `feat`, `fix`, `perf` or breaking
 commit since the last tag. Rebuild the exe afterwards on the tag (`scripts\build.ps1`) to get the clean version.
 
-## CI release (Bitbucket Pipelines)
+## CI release (GitHub Actions)
 
-Every push to `master` runs `bitbucket-pipelines.yml`: it builds the frontend, cross-compiles the exe for Windows and
-publishes the release. `master` only receives git-flow releases, so a push there is a release; the tag `vX.Y.Z` at `HEAD`
-(pushed together with `--follow-tags`) names it. If `HEAD` has no release tag the pipeline does nothing.
+Every push to `master` runs `.github/workflows/release.yml`: it builds the frontend, cross-compiles the exe for Windows and
+publishes a **GitHub release**. `master` only receives git-flow releases, so a push there is a release; the tag `vX.Y.Z`
+at `HEAD` (pushed together with `--follow-tags`) names it. If `HEAD` has no release tag the workflow does nothing.
 
-Bitbucket has no GitHub-style releases, so the release is published in the repository's **Downloads**
-(`Repository > Downloads`):
+The release `vX.Y.Z` gets:
 
 - `soundboard-vX.Y.Z-windows-amd64.zip` - `soundboard.exe`, `soundboard-console.exe`, `README.md`, `CHANGELOG.md`
 - `soundboard-vX.Y.Z-windows-amd64.zip.sha256` - checksum
-- `soundboard-vX.Y.Z-windows-amd64-release-notes.md` - the changelog section of this version
+- the changelog section of this version as the release notes
 
-Uploading a file with an existing name replaces it, so re-running the pipeline is safe.
+Re-running the workflow for an existing release updates its notes and replaces its assets. A workflow run can also be
+started by hand (*Actions > Release > Run workflow*), for example if the tag was pushed after the branch.
 
-One-time setup in Bitbucket:
+One-time setup on GitHub (no secrets or tokens are needed; the workflow uses the built-in `GITHUB_TOKEN`):
 
-1. *Repository settings > Pipelines > Settings*: enable Pipelines.
-2. *Repository settings > Security > Access tokens*: create a repository access token with the scope
-   **Repositories: Write**.
-3. *Repository settings > Pipelines > Repository variables*: add `BB_ACCESS_TOKEN` with that token, marked **Secured**.
-   (Alternatively `BB_USERNAME` + `BB_APP_PASSWORD` with a user that may write to the repository.)
+1. *Settings > Actions > General > Actions permissions*: allow actions (at least GitHub-authored ones).
+2. *Settings > Actions > General > Workflow permissions*: **Read and write permissions**. The workflow asks for
+   `contents: write` itself, but an organization or repository policy that forces read-only tokens overrides that.
+3. If `master` is a protected branch, the release script's push (merge commit and tag) must be allowed for you; the
+   workflow itself never pushes.
 
-The packaging logic lives in `build/ci-release.sh` and can be tried locally without uploading, using the existing exes:
-`RELEASE_TAG=v0.1.0 DRY_RUN=1 SKIP_BUILD=1 bash build/ci-release.sh` (needs `zip`).
+Tags are not pushed by a plain `git push`: use `git push origin master develop --follow-tags` (or
+`scripts\release.ps1 -Push`). Tags that were created before the workflow existed (`v0.1.0`, `v0.1.1`) can be pushed with
+`git push origin v0.1.0 v0.1.1`; that creates no releases, only the tags.
+
+The packaging logic lives in `build/ci-release.sh` and can be tried locally without publishing, using the existing exes:
+`RELEASE_TAG=v0.1.1 DRY_RUN=1 SKIP_BUILD=1 bash build/ci-release.sh` (needs `zip`).

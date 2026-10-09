@@ -1,0 +1,68 @@
+# On every push to master, build the Windows exe and publish it as a GitHub release.
+# master only receives git-flow releases, so a push there is a release; the tag vX.Y.Z at HEAD names it
+# (pushed together with master via --follow-tags). If HEAD is not tagged, the job does nothing.
+# Setup: CONTRIBUTING.md, "CI release".
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: # re-run by hand, e.g. if the tag was pushed after the branch
+
+permissions:
+  contents: write # create the release and upload its assets
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build exe and publish release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history and all tags: the release tag must be visible
+
+      - name: Is HEAD a release?
+        id: release
+        run: |
+          tag=$(git describe --exact-match --tags --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then
+            echo "::notice::HEAD is not at a release tag (vX.Y.Z), so there is nothing to publish."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.tag != ''
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-go@v5
+        if: steps.release.outputs.tag != ''
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Build the frontend
+        if: steps.release.outputs.tag != ''
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Install the MinGW cross compiler
+        if: steps.release.outputs.tag != ''
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends gcc-mingw-w64-x86-64 zip
+
+      - name: Build the exe and publish the release
+        if: steps.release.outputs.tag != ''
+        run: bash build/ci-release.sh
